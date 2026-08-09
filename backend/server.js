@@ -96,16 +96,20 @@ app.get('/api/contacts/:id/performance', async (req, res) => {
 
 app.get('/api/loan-files', async (req, res) => {
   res.json(await db.all(`
-    SELECT lf.*, c.name as lead_name, c.mobile as lead_mobile
+    SELECT lf.*, c.name as lead_name, c.mobile as lead_mobile, b.name as banker_name, b.mobile as banker_mobile
     FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id
+    LEFT JOIN contacts b ON b.id = lf.banker_contact_id
     ORDER BY lf.created_at DESC
   `));
 });
 
 app.get('/api/loan-files/:id', async (req, res) => {
   const file = await db.get(`
-    SELECT lf.*, c.name as lead_name, c.mobile as lead_mobile, c.location, c.cibil_score, c.profile_type, c.profile_detail
-    FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id WHERE lf.id = ?
+    SELECT lf.*, c.name as lead_name, c.mobile as lead_mobile, c.location, c.cibil_score, c.profile_type, c.profile_detail,
+      b.name as banker_name, b.mobile as banker_mobile
+    FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id
+    LEFT JOIN contacts b ON b.id = lf.banker_contact_id
+    WHERE lf.id = ?
   `, [req.params.id]);
   if (!file) return res.status(404).json({ error: 'Not found' });
   file.applicants = await db.all(`SELECT * FROM file_applicants WHERE loan_file_id = ?`, [req.params.id]);
@@ -284,6 +288,60 @@ app.get('/api/reports/loan-files', async (req, res) => {
   if (from) { sql += ` AND lf.created_at >= ?`; args.push(from); }
   if (to) { sql += ` AND lf.created_at <= ?`; args.push(to); }
   res.json(await db.all(sql, args));
+});
+
+// ---------- AUDIT LOG ----------
+app.get('/api/audit-log', async (req, res) => {
+  const { table_name, record_id } = req.query;
+  let sql = `SELECT * FROM audit_log WHERE 1=1`;
+  const args = [];
+  if (table_name) { sql += ` AND table_name = ?`; args.push(table_name); }
+  if (record_id) { sql += ` AND record_id = ?`; args.push(record_id); }
+  sql += ` ORDER BY changed_at DESC LIMIT 200`;
+  res.json(await db.all(sql, args));
+});
+
+// ---------- DOCUMENT CHECKLIST RULES ----------
+app.get('/api/doc-checklist-rules', async (req, res) => {
+  const { bank_name, loan_category } = req.query;
+  let sql = `SELECT * FROM doc_checklist_rules WHERE 1=1`;
+  const args = [];
+  if (bank_name) { sql += ` AND bank_name = ?`; args.push(bank_name); }
+  if (loan_category) { sql += ` AND loan_category = ?`; args.push(loan_category); }
+  sql += ` ORDER BY bank_name, loan_category, document_tier`;
+  res.json(await db.all(sql, args));
+});
+
+app.get('/api/doc-checklist-rules/banks', async (req, res) => {
+  const rows = await db.all(`SELECT DISTINCT bank_name FROM doc_checklist_rules ORDER BY bank_name`);
+  res.json(rows.map(r => r.bank_name));
+});
+
+app.post('/api/doc-checklist-rules', async (req, res) => {
+  const r = req.body;
+  const info = await db.run(`
+    INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common)
+    VALUES (?,?,?,?,?,?)
+  `, [r.bank_name, r.loan_category, r.loan_subcategory || null, r.document_tier, r.document_name, r.applies_to_common ? 1 : 0]);
+  res.json(await db.get(`SELECT * FROM doc_checklist_rules WHERE id = ?`, [info.lastInsertRowid]));
+});
+
+app.delete('/api/doc-checklist-rules/:id', async (req, res) => {
+  await db.run(`DELETE FROM doc_checklist_rules WHERE id = ?`, [req.params.id]);
+  res.json({ deleted: true });
+});
+
+app.post('/api/doc-checklist-rules/copy-bank', async (req, res) => {
+  // Duplicate all "Generic" rules under a new bank name, as a starting point to customize
+  const { new_bank_name, from_bank_name } = req.body;
+  const source = await db.all(`SELECT * FROM doc_checklist_rules WHERE bank_name = ?`, [from_bank_name || 'Generic']);
+  for (const r of source) {
+    await db.run(`
+      INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common)
+      VALUES (?,?,?,?,?,?)
+    `, [new_bank_name, r.loan_category, r.loan_subcategory, r.document_tier, r.document_name, r.applies_to_common]);
+  }
+  res.json({ copied: source.length });
 });
 
 const PORT = process.env.PORT || 4000;

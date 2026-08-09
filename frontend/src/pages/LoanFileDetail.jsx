@@ -123,6 +123,11 @@ export default function LoanFileDetail() {
             <h3 className="font-medium mb-2">Commission</h3>
             <CommissionEditor file={file} onSave={load} />
           </div>
+
+          <div className="bg-white border rounded-lg p-4 col-span-2">
+            <h3 className="font-medium mb-2">Banker Contact</h3>
+            <BankerEditor file={file} onSave={load} />
+          </div>
         </div>
       )}
 
@@ -158,6 +163,26 @@ function CommissionEditor({ file, onSave }) {
           {['Pending', 'Partially Received', 'Received'].map(s => <option key={s}>{s}</option>)}
         </select></div>
       <button onClick={save} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Save</button>
+    </div>
+  );
+}
+
+function BankerEditor({ file, onSave }) {
+  const [bankers, setBankers] = useState([]);
+  const [selected, setSelected] = useState(file.banker_contact_id || '');
+  useEffect(() => { api.getContacts('banker').then(setBankers); }, []);
+  const save = async () => { await api.updateLoanFile(file.id, { banker_contact_id: selected || null }); onSave(); };
+  return (
+    <div className="flex gap-3 items-end text-sm">
+      <div>
+        <label className="block text-xs text-gray-500">Linked Banker</label>
+        <select value={selected} onChange={e => setSelected(e.target.value)} className="input">
+          <option value="">-- none --</option>
+          {bankers.map(b => <option key={b.id} value={b.id}>{b.name} {b.mobile ? `(${b.mobile})` : ''}</option>)}
+        </select>
+      </div>
+      <button onClick={save} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Save</button>
+      {file.banker_name && <div className="ml-2"><ContactActions mobile={file.banker_mobile} /></div>}
     </div>
   );
 }

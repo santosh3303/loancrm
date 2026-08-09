@@ -21,6 +21,27 @@ export default function Reports() {
     a.href = url; a.download = 'loan_files_report.csv'; a.click();
   };
 
+  const exportPdf = () => {
+    if (!results || !results.length) return;
+    const rowsHtml = results.map(r => `
+      <tr><td>${r.lead_name}</td><td>${r.loan_category}</td><td>₹${Number(r.loan_amount || 0).toLocaleString('en-IN')}</td>
+      <td>${r.current_stage}</td><td>${r.source}</td><td>${r.bank_name || '-'}</td></tr>`).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <html><head><title>Loan Files Report</title>
+      <style>
+        body{font-family:sans-serif;padding:20px;} table{width:100%;border-collapse:collapse;font-size:13px;}
+        th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;} th{background:#f4f5f7;}
+      </style></head><body>
+      <h2>Loan Files Report</h2>
+      <p>Generated ${new Date().toLocaleDateString()}</p>
+      <table><thead><tr><th>Lead</th><th>Category</th><th>Amount</th><th>Stage</th><th>Source</th><th>Bank</th></tr></thead>
+      <tbody>${rowsHtml}</tbody></table>
+      <script>window.print();</script>
+      </body></html>`);
+    win.document.close();
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Reports</h1>
@@ -43,6 +64,7 @@ export default function Reports() {
           <input type="date" value={filters.to} onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} className="input" /></div>
         <button onClick={run} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm">Run Report</button>
         {results && <button onClick={exportCsv} className="border px-4 py-2 rounded-md text-sm">Export CSV</button>}
+        {results && <button onClick={exportPdf} className="border px-4 py-2 rounded-md text-sm">Export PDF</button>}
       </div>
 
       {results && (

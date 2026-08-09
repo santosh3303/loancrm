@@ -39,4 +39,12 @@ export const api = {
 
   getDashboard: () => req('GET', '/dashboard'),
   getReport: (params) => req('GET', `/reports/loan-files?${new URLSearchParams(params).toString()}`),
+
+  getAuditLog: (params) => req('GET', `/audit-log${params ? `?${new URLSearchParams(params).toString()}` : ''}`),
+
+  getChecklistRules: (params) => req('GET', `/doc-checklist-rules${params ? `?${new URLSearchParams(params).toString()}` : ''}`),
+  getChecklistBanks: () => req('GET', '/doc-checklist-rules/banks'),
+  addChecklistRule: (data) => req('POST', '/doc-checklist-rules', data),
+  deleteChecklistRule: (id) => req('DELETE', `/doc-checklist-rules/${id}`),
+  copyBankRules: (data) => req('POST', '/doc-checklist-rules/copy-bank', data),
 };

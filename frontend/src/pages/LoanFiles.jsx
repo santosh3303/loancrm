@@ -8,11 +8,12 @@ export default function LoanFiles() {
   const [leadQuery, setLeadQuery] = useState('');
   const [leadMatches, setLeadMatches] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
-  const [form, setForm] = useState({ loan_category: 'Home Loan', loan_subcategory: 'Fresh', loan_amount: '', bank_name: '', property_category: '', property_type: '' });
+  const [bankers, setBankers] = useState([]);
+  const [form, setForm] = useState({ loan_category: 'Home Loan', loan_subcategory: 'Fresh', loan_amount: '', bank_name: '', banker_contact_id: '', property_category: '', property_type: '' });
   const debounceRef = useRef();
 
   const load = () => api.getLoanFiles().then(setFiles);
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); api.getContacts('banker').then(setBankers); }, []);
 
   const handleLeadSearch = (v) => {
     setLeadQuery(v); setSelectedLead(null);
@@ -23,7 +24,7 @@ export default function LoanFiles() {
 
   const submit = async () => {
     if (!selectedLead) return alert('Please select an existing lead first.');
-    await api.createLoanFile({ lead_contact_id: selectedLead.id, ...form, loan_amount: Number(form.loan_amount) || null });
+    await api.createLoanFile({ lead_contact_id: selectedLead.id, ...form, banker_contact_id: form.banker_contact_id || null, loan_amount: Number(form.loan_amount) || null });
     setShowForm(false); setSelectedLead(null); setLeadQuery('');
     load();
   };
@@ -90,6 +91,12 @@ export default function LoanFiles() {
 
             <Field label="Loan Amount"><input type="number" value={form.loan_amount} onChange={e => setForm(f => ({ ...f, loan_amount: e.target.value }))} className="input" /></Field>
             <Field label="Bank Name"><input value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))} className="input" placeholder="e.g. HDFC (leave blank for Generic)" /></Field>
+            <Field label="Banker Contact (optional)">
+              <select value={form.banker_contact_id} onChange={e => setForm(f => ({ ...f, banker_contact_id: e.target.value }))} className="input">
+                <option value="">-- none --</option>
+                {bankers.map(b => <option key={b.id} value={b.id}>{b.name} {b.mobile ? `(${b.mobile})` : ''}</option>)}
+              </select>
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Property Category">
