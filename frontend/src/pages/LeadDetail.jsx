@@ -37,13 +37,13 @@ export default function LeadDetail() {
     <div className="p-6 max-w-2xl mx-auto">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h1 className="text-2xl font-semibold">{lead.name}</h1>
+          <h1 className="text-2xl font-display font-semibold text-navy-700">{lead.name}</h1>
           <p className="text-sm text-gray-500">{lead.mobile} — {lead.location || 'no location'}</p>
         </div>
         <ContactActions mobile={lead.mobile} />
       </div>
 
-      <div className="bg-white border rounded-lg p-4 mb-4 space-y-3 text-sm">
+      <div className="card p-4 mb-4 space-y-3 text-sm">
         <h3 className="font-medium">Qualification Details</h3>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Qualification Status">
@@ -74,7 +74,7 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      <div className="bg-white border rounded-lg p-4 mb-4 space-y-3 text-sm">
+      <div className="card p-4 mb-4 space-y-3 text-sm">
         <h3 className="font-medium">Loan Interest (at enquiry stage)</h3>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Loan Category">
@@ -92,12 +92,12 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      <div className="bg-white border rounded-lg p-4 mb-4 text-sm">
+      <div className="card p-4 mb-4 text-sm">
         <h3 className="font-medium mb-2">Additional Info</h3>
         <textarea value={lead.additional_info || ''} onChange={e => update('additional_info', e.target.value)} className="input" />
       </div>
 
-      <div className="bg-white border rounded-lg p-4 mb-4 text-sm">
+      <div className="card p-4 mb-4 text-sm">
         <h3 className="font-medium mb-2">Follow-ups</h3>
         {followUps.length === 0 && <p className="text-gray-400">None yet</p>}
         {followUps.map(f => (
@@ -110,7 +110,7 @@ export default function LeadDetail() {
 
       <div className="flex justify-end gap-2">
         {saved && <span className="text-green-600 text-sm self-center">Saved</span>}
-        <button onClick={save} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm">Save Changes</button>
+        <button onClick={save} className="btn-primary">Save Changes</button>
       </div>
     </div>
   );

@@ -2,15 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
-
-const STAGES = [
-  'File Prep', 'Docs Prep', 'Docs Collection', 'File Ready', 'File Login',
-  'PF Clearance', 'RCU/FCU', 'Valuation Visit', 'Employment Verification', 'Credit PD',
-  'Query Resolution', 'Offer Discussion', 'Sanction Letter', 'T&C Discussion',
-  'Property Registration', 'Post-Sanction Docs', 'Agreement Vetting', 'Final PF Payment',
-  'OCR Clearance', 'PDC Submission', 'Agreement Signing', 'Disbursement Query', 'Disbursed'
-];
-const BANK_PIVOT_INDEX = STAGES.indexOf('PF Clearance');
+import StageTracker, { STAGES } from '../components/StageTracker';
 
 export default function LoanFileDetail() {
   const { id } = useParams();
@@ -22,9 +14,7 @@ export default function LoanFileDetail() {
   const load = () => api.getLoanFile(id).then(setFile);
   useEffect(() => { load(); }, [id]);
 
-  if (!file) return <div className="p-6">Loading...</div>;
-
-  const stageIndex = STAGES.indexOf(file.current_stage);
+  if (!file) return <div className="p-6 text-gray-400">Loading...</div>;
 
   const changeStage = async (stage) => {
     await api.updateLoanFile(id, { current_stage: stage });
@@ -35,38 +25,22 @@ export default function LoanFileDetail() {
   const loadBankerSummary = async () => setBankerSummary(await api.getBankerSummary(id));
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex justify-between items-start mb-4">
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
+      <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">{file.lead_name}</h1>
-          <p className="text-sm text-gray-500">{file.loan_category} {file.loan_subcategory} — ₹{Number(file.loan_amount || 0).toLocaleString('en-IN')} — {file.bank_name || 'Generic'}</p>
+          <h1 className="text-2xl font-display font-semibold text-navy-700">{file.lead_name}</h1>
+          <p className="text-sm text-gray-400">{file.loan_category} {file.loan_subcategory} — ₹{Number(file.loan_amount || 0).toLocaleString('en-IN')} — {file.bank_name || 'Generic'}</p>
         </div>
         <ContactActions mobile={file.lead_mobile} />
       </div>
 
-      {/* Stage tracker */}
-      <div className="bg-white rounded-lg border p-4 mb-4 overflow-x-auto">
-        <div className="flex gap-1 min-w-max">
-          {STAGES.map((s, i) => (
-            <button key={s} onClick={() => changeStage(s)}
-              title={i > BANK_PIVOT_INDEX && stageIndex < BANK_PIVOT_INDEX ? 'Bank stages unlock after File Login' : ''}
-              className={`text-xs px-2 py-1 rounded whitespace-nowrap border
-                ${i === stageIndex ? 'bg-blue-600 text-white border-blue-600' :
-                  i < stageIndex ? 'bg-green-50 text-green-700 border-green-200' :
-                  i === BANK_PIVOT_INDEX + 1 ? 'border-dashed border-gray-300 text-gray-400' :
-                  'text-gray-500 border-gray-200'}`}>
-              {s}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-gray-400 mt-2">Bank-side stages (after File Login) only begin once the file is logged in — click any stage to move the file there.</p>
-      </div>
+      <StageTracker currentStage={file.current_stage} onChange={changeStage} />
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b mb-4 text-sm">
+      <div className="flex gap-1 border-b border-gray-200 mb-6 text-sm overflow-x-auto">
         {['overview', 'applicants', 'followups', 'queries', 'communication'].map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`pb-2 capitalize ${tab === t ? 'border-b-2 border-blue-600 text-blue-600 font-medium' : 'text-gray-500'}`}>
+            className={`pb-2.5 px-3 capitalize whitespace-nowrap transition-colors ${tab === t ? 'border-b-2 border-amber-500 text-navy-700 font-semibold' : 'text-gray-400 hover:text-navy-500'}`}>
             {t}
           </button>
         ))}
@@ -74,7 +48,7 @@ export default function LoanFileDetail() {
 
       {tab === 'overview' && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white border rounded-lg p-4">
+          <div className="card p-4">
             <h3 className="font-medium mb-2">Banker Discussion Summary</h3>
             <button onClick={loadBankerSummary} className="text-xs bg-gray-100 px-2 py-1 rounded mb-2">Generate</button>
             {bankerSummary && (
@@ -93,7 +67,7 @@ export default function LoanFileDetail() {
             )}
           </div>
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="card p-4">
             <h3 className="font-medium mb-2">Required Docs List</h3>
             <button onClick={loadDocsList} className="text-xs bg-gray-100 px-2 py-1 rounded mb-2">Generate</button>
             {docsList && (
@@ -122,12 +96,12 @@ export default function LoanFileDetail() {
             )}
           </div>
 
-          <div className="bg-white border rounded-lg p-4 col-span-2">
+          <div className="card p-4 col-span-2">
             <h3 className="font-medium mb-2">Commission</h3>
             <CommissionEditor file={file} onSave={load} />
           </div>
 
-          <div className="bg-white border rounded-lg p-4 col-span-2">
+          <div className="card p-4 col-span-2">
             <h3 className="font-medium mb-2">Banker Contact</h3>
             <BankerEditor file={file} onSave={load} />
           </div>
@@ -165,7 +139,7 @@ function CommissionEditor({ file, onSave }) {
         <select value={status} onChange={e => setStatus(e.target.value)} className="input">
           {['Pending', 'Partially Received', 'Received'].map(s => <option key={s}>{s}</option>)}
         </select></div>
-      <button onClick={save} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Save</button>
+      <button onClick={save} className="btn-primary text-xs px-3 py-2">Save</button>
     </div>
   );
 }
@@ -184,7 +158,7 @@ function BankerEditor({ file, onSave }) {
           {bankers.map(b => <option key={b.id} value={b.id}>{b.name} {b.mobile ? `(${b.mobile})` : ''}</option>)}
         </select>
       </div>
-      <button onClick={save} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Save</button>
+      <button onClick={save} className="btn-primary text-xs px-3 py-2">Save</button>
       {file.banker_name && <div className="ml-2"><ContactActions mobile={file.banker_mobile} /></div>}
     </div>
   );
@@ -195,7 +169,7 @@ function ApplicantsTab({ fileId, applicants, onChange }) {
   const add = async () => { await api.addApplicant(fileId, form); setForm({ name: '', mobile: '', applicant_role: 'Co-Applicant', document_tier: 'Full Set' }); onChange(); };
   const setTier = async (a, tier) => { await api.updateApplicant(a.id, { document_tier: tier }); onChange(); };
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="card p-4">
       <table className="w-full text-sm mb-4">
         <thead className="text-left text-gray-500"><tr><th>Name</th><th>Role</th><th>Mobile</th><th>Doc Tier</th></tr></thead>
         <tbody>
@@ -219,7 +193,7 @@ function ApplicantsTab({ fileId, applicants, onChange }) {
         <select value={form.applicant_role} onChange={e => setForm(f => ({ ...f, applicant_role: e.target.value }))} className="input">
           <option>Co-Applicant</option><option>Guarantor</option>
         </select>
-        <button onClick={add} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Add</button>
+        <button onClick={add} className="btn-primary text-xs px-3 py-2">Add</button>
       </div>
     </div>
   );
@@ -230,7 +204,7 @@ function FollowUpsTab({ fileId, followUps, onChange }) {
   const add = async () => { await api.createFollowUp({ loan_file_id: fileId, ...form }); setForm(f => ({ ...f, notes: '' })); onChange(); };
   const markDone = async (id) => { await api.updateFollowUp(id, { status: 'Done' }); onChange(); };
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="card p-4">
       <table className="w-full text-sm mb-4">
         <thead className="text-left text-gray-500"><tr><th>Party</th><th>Method</th><th>Due</th><th>Status</th><th>Notes</th><th></th></tr></thead>
         <tbody>
@@ -239,7 +213,7 @@ function FollowUpsTab({ fileId, followUps, onChange }) {
               <td className="py-1">{f.party_type}</td><td>{f.method}</td><td>{f.due_date}</td>
               <td><span className={f.status === 'Pending' ? 'text-orange-600' : 'text-green-600'}>{f.status}</span></td>
               <td>{f.notes}</td>
-              <td>{f.status === 'Pending' && <button onClick={() => markDone(f.id)} className="text-xs text-blue-600">Mark done</button>}</td>
+              <td>{f.status === 'Pending' && <button onClick={() => markDone(f.id)} className="text-xs text-amber-700 hover:underline">Mark done</button>}</td>
             </tr>
           ))}
         </tbody>
@@ -249,7 +223,7 @@ function FollowUpsTab({ fileId, followUps, onChange }) {
         <select value={form.method} onChange={e => setForm(f => ({ ...f, method: e.target.value }))} className="input"><option>Call</option><option>WhatsApp</option><option>Visit</option></select>
         <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="input" />
         <input placeholder="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="input" />
-        <button onClick={add} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Add Follow-up</button>
+        <button onClick={add} className="btn-primary text-xs px-3 py-2">Add Follow-up</button>
       </div>
     </div>
   );
@@ -260,7 +234,7 @@ function QueriesTab({ fileId, queries, onChange }) {
   const add = async () => { if (!form.description) return; await api.createQuery({ loan_file_id: fileId, ...form }); setForm(f => ({ ...f, description: '' })); onChange(); };
   const setStatus = async (id, status) => { await api.updateQuery(id, { status }); onChange(); };
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="card p-4">
       <table className="w-full text-sm mb-4">
         <thead className="text-left text-gray-500"><tr><th>Raised By</th><th>Priority</th><th>Description</th><th>Status</th></tr></thead>
         <tbody>
@@ -282,7 +256,7 @@ function QueriesTab({ fileId, queries, onChange }) {
         <select value={form.raised_by} onChange={e => setForm(f => ({ ...f, raised_by: e.target.value }))} className="input"><option>Bank</option><option>Lead</option><option>Connector</option></select>
         <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className="input"><option>Low</option><option>Medium</option><option>High</option></select>
         <input placeholder="Query description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="input flex-1" />
-        <button onClick={add} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Add Query</button>
+        <button onClick={add} className="btn-primary text-xs px-3 py-2">Add Query</button>
       </div>
     </div>
   );
@@ -292,7 +266,7 @@ function CommunicationTab({ fileId, log, onChange }) {
   const [form, setForm] = useState({ party_type: 'Lead', mode: 'Call', log_date: new Date().toISOString().slice(0, 10), content: '' });
   const add = async () => { if (!form.content) return; await api.addCommunicationLog({ loan_file_id: fileId, ...form }); setForm(f => ({ ...f, content: '' })); onChange(); };
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="card p-4">
       <div className="space-y-2 mb-4 text-sm">
         {log.map(c => (
           <div key={c.id} className="border-b pb-2">
@@ -306,7 +280,7 @@ function CommunicationTab({ fileId, log, onChange }) {
         <select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value }))} className="input"><option>Call</option><option>WhatsApp</option><option>Visit</option><option>Email</option></select>
         <input type="date" value={form.log_date} onChange={e => setForm(f => ({ ...f, log_date: e.target.value }))} className="input" />
         <input placeholder="What was discussed" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} className="input flex-1" />
-        <button onClick={add} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Log</button>
+        <button onClick={add} className="btn-primary text-xs px-3 py-2">Log</button>
       </div>
     </div>
   );

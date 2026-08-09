@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
+import { Sparkles, SlidersHorizontal, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 
 const DEFAULT_WIDGETS = ['stats', 'pipeline', 'today', 'queries'];
 const WIDGET_LABELS = { stats: 'Summary Stats', pipeline: 'Pipeline by Stage', today: "Today's Follow-ups", queries: 'Open Queries' };
@@ -25,8 +26,7 @@ export default function Dashboard() {
     setSeeding(true);
     try {
       await api.seedDemoData();
-      const refreshed = await api.getDashboard();
-      setData(refreshed);
+      setData(await api.getDashboard());
       alert('Sample data added! Explore Leads, Loan Files, and Contacts to see it.');
     } catch (e) {
       alert('Something went wrong adding sample data: ' + e.message);
@@ -34,9 +34,7 @@ export default function Dashboard() {
     setSeeding(false);
   };
 
-  const toggleWidget = (w) => {
-    setWidgets(cur => cur.includes(w) ? cur.filter(x => x !== w) : [...cur, w]);
-  };
+  const toggleWidget = (w) => setWidgets(cur => cur.includes(w) ? cur.filter(x => x !== w) : [...cur, w]);
   const move = (w, dir) => {
     setWidgets(cur => {
       const i = cur.indexOf(w);
@@ -48,33 +46,34 @@ export default function Dashboard() {
     });
   };
 
-  if (!data) return <div className="p-6">Loading...</div>;
+  if (!data) return <div className="p-6 text-gray-400">Loading...</div>;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+      <div className="flex justify-between items-center mb-1">
+        <h1 className="text-2xl font-display font-semibold text-navy-700">Dashboard</h1>
         <div className="flex gap-2">
-          <button onClick={loadSampleData} disabled={seeding} className="text-sm border px-3 py-1.5 rounded-md bg-green-50 border-green-200 text-green-700">
-            {seeding ? 'Loading...' : 'Load Sample Data'}
+          <button onClick={loadSampleData} disabled={seeding} className="btn-secondary flex items-center gap-1.5">
+            <Sparkles size={14} /> {seeding ? 'Loading...' : 'Load Sample Data'}
           </button>
-          <button onClick={() => setCustomizing(c => !c)} className="text-sm border px-3 py-1.5 rounded-md">
-            {customizing ? 'Done' : 'Customize'}
+          <button onClick={() => setCustomizing(c => !c)} className="btn-secondary flex items-center gap-1.5">
+            <SlidersHorizontal size={14} /> {customizing ? 'Done' : 'Customize'}
           </button>
         </div>
       </div>
+      <p className="text-sm text-gray-400 mb-6">Your day, at a glance.</p>
 
       {customizing && (
-        <div className="bg-white border rounded-lg p-4 text-sm space-y-2">
-          <p className="text-xs text-gray-500 mb-2">Show/hide widgets and reorder them. Your layout is remembered on this device.</p>
+        <div className="card p-4 text-sm space-y-2 mb-6 animate-fade-in">
+          <p className="text-xs text-gray-400 mb-2">Show/hide widgets and reorder them. Remembered on this device.</p>
           {DEFAULT_WIDGETS.map(w => (
             <div key={w} className="flex items-center gap-3">
-              <input type="checkbox" checked={widgets.includes(w)} onChange={() => toggleWidget(w)} />
-              <span className="flex-1">{WIDGET_LABELS[w]}</span>
+              <input type="checkbox" checked={widgets.includes(w)} onChange={() => toggleWidget(w)} className="accent-amber-600" />
+              <span className="flex-1 text-navy-700">{WIDGET_LABELS[w]}</span>
               {widgets.includes(w) && (
                 <>
-                  <button onClick={() => move(w, -1)} className="text-xs px-2 py-0.5 border rounded">↑</button>
-                  <button onClick={() => move(w, 1)} className="text-xs px-2 py-0.5 border rounded">↓</button>
+                  <button onClick={() => move(w, -1)} className="text-xs px-2 py-0.5 border rounded-md hover:bg-navy-50">↑</button>
+                  <button onClick={() => move(w, 1)} className="text-xs px-2 py-0.5 border rounded-md hover:bg-navy-50">↓</button>
                 </>
               )}
             </div>
@@ -83,31 +82,33 @@ export default function Dashboard() {
       )}
 
       {widgets.includes('stats') && (
-        <div className="grid grid-cols-3 gap-4">
-          <Stat label="Open Leads" value={data.openLeads} />
-          <Stat label="Active Files" value={data.activeFiles} />
-          <Stat label="Overdue Follow-ups" value={data.overdueFollowUps} warn={data.overdueFollowUps > 0} />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Stat icon={TrendingUp} label="Open Leads" value={data.openLeads} />
+          <Stat icon={Clock} label="Active Files" value={data.activeFiles} />
+          <Stat icon={AlertCircle} label="Overdue Follow-ups" value={data.overdueFollowUps} warn={data.overdueFollowUps > 0} />
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {widgets.includes('pipeline') && (
           <Card title="Pipeline by Stage">
-            {data.pipeline.length === 0 && <p className="text-gray-400 text-sm">No files yet</p>}
+            {data.pipeline.length === 0 && <Empty text="No files yet" />}
             {data.pipeline.map(p => (
-              <div key={p.current_stage} className="flex justify-between text-sm py-1 border-b">
-                <span>{p.current_stage}</span><span className="font-medium">{p.c}</span>
+              <div key={p.current_stage} className="flex justify-between text-sm py-2 border-b border-gray-50 last:border-0">
+                <span className="text-navy-700">{p.current_stage}</span>
+                <span className="font-semibold text-navy-500">{p.c}</span>
               </div>
             ))}
           </Card>
         )}
 
         {widgets.includes('today') && (
-          <Card title="Today's Follow-ups">
-            {data.todayFollowUps.length === 0 && <p className="text-gray-400 text-sm">Nothing due today</p>}
+          <Card title="Today's Follow-ups" link="/tasks">
+            {data.todayFollowUps.length === 0 && <Empty text="Nothing due today" />}
             {data.todayFollowUps.map(f => (
-              <div key={f.id} className="text-sm py-1 border-b">
-                <span className="font-medium">{f.party_type}</span> — {f.method} {f.notes ? `(${f.notes})` : ''}
+              <div key={f.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
+                <span className="font-medium text-navy-700">{f.party_type}</span>
+                <span className="text-gray-400"> — {f.method} {f.notes ? `(${f.notes})` : ''}</span>
               </div>
             ))}
           </Card>
@@ -115,11 +116,12 @@ export default function Dashboard() {
 
         {widgets.includes('queries') && (
           <Card title="Open Queries">
-            {data.openQueries.length === 0 && <p className="text-gray-400 text-sm">No open queries</p>}
+            {data.openQueries.length === 0 && <Empty text="No open queries" />}
             {data.openQueries.map(q => (
-              <div key={q.id} className="text-sm py-1 border-b">
-                <span className={`font-medium ${q.priority === 'High' ? 'text-red-600' : ''}`}>{q.priority}</span> — {q.description}
-                <Link to={`/loan-files/${q.loan_file_id}`} className="text-blue-600 ml-1">view</Link>
+              <div key={q.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
+                <span className={`font-medium ${q.priority === 'High' ? 'text-red-600' : 'text-navy-700'}`}>{q.priority}</span>
+                <span className="text-gray-500"> — {q.description}</span>
+                <Link to={`/loan-files/${q.loan_file_id}`} className="text-amber-700 ml-1 hover:underline">view</Link>
               </div>
             ))}
           </Card>
@@ -129,20 +131,29 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ label, value, warn }) {
+function Stat({ icon: Icon, label, value, warn }) {
   return (
-    <div className={`rounded-lg p-4 bg-white shadow-sm border ${warn ? 'border-red-300' : 'border-gray-200'}`}>
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className={`text-3xl font-semibold ${warn ? 'text-red-600' : ''}`}>{value}</div>
+    <div className={`card p-5 ${warn ? 'border-red-200' : ''}`}>
+      <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+        <Icon size={15} /> {label}
+      </div>
+      <div className={`text-3xl font-display font-semibold ${warn ? 'text-red-600' : 'text-navy-700'}`}>{value}</div>
     </div>
   );
 }
 
-function Card({ title, children }) {
+function Card({ title, children, link }) {
   return (
-    <div className="rounded-lg p-4 bg-white shadow-sm border border-gray-200">
-      <div className="font-medium mb-2">{title}</div>
+    <div className="card p-4">
+      <div className="flex justify-between items-center mb-2">
+        <div className="font-medium text-navy-700 text-sm">{title}</div>
+        {link && <Link to={link} className="text-xs text-amber-700 hover:underline">view all</Link>}
+      </div>
       {children}
     </div>
   );
+}
+
+function Empty({ text }) {
+  return <p className="text-gray-300 text-sm py-4 text-center">{text}</p>;
 }

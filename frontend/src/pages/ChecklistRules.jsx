@@ -37,11 +37,11 @@ export default function ChecklistRules() {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-1">Document Checklist Rules</h1>
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+      <h1 className="text-2xl font-display font-semibold text-navy-700 mb-1">Document Checklist Rules</h1>
       <p className="text-sm text-gray-500 mb-4">Edit which documents are required per bank, loan category, and applicant tier. These power the auto-generated Required Docs List on each Loan File.</p>
 
-      <div className="bg-white border rounded-lg p-4 mb-4 flex gap-3 items-end flex-wrap text-sm">
+      <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap text-sm">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Bank</label>
           <select value={bank} onChange={e => setBank(e.target.value)} className="input">
@@ -59,13 +59,13 @@ export default function ChecklistRules() {
             <label className="block text-xs text-gray-500 mb-1">Add a new bank (copies Generic list to start from)</label>
             <input value={newBankName} onChange={e => setNewBankName(e.target.value)} placeholder="e.g. HDFC" className="input" />
           </div>
-          <button onClick={createBank} className="bg-gray-800 text-white text-xs px-3 py-2 rounded">Add Bank</button>
+          <button onClick={createBank} className="btn-primary text-xs px-3 py-2">Add Bank</button>
         </div>
       </div>
 
-      <div className="bg-white border rounded-lg overflow-hidden mb-4">
+      <div className="card overflow-hidden mb-4">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-500"><tr><th className="p-3">Document</th><th>Tier</th><th>Only if Property</th><th>Only if Profile</th><th>Common (once per file)</th><th></th></tr></thead>
+          <thead className="bg-navy-50/40 text-left text-navy-700/70"><tr><th className="p-3">Document</th><th>Tier</th><th>Only if Property</th><th>Only if Profile</th><th>Common (once per file)</th><th></th></tr></thead>
           <tbody>
             {rules.map(r => (
               <tr key={r.id} className="border-t">
@@ -82,7 +82,7 @@ export default function ChecklistRules() {
         </table>
       </div>
 
-      <div className="bg-white border rounded-lg p-4 flex gap-2 items-end flex-wrap text-sm">
+      <div className="card p-4 flex gap-2 items-end flex-wrap text-sm">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Document Name</label>
           <input value={newDoc.document_name} onChange={e => setNewDoc(d => ({ ...d, document_name: e.target.value }))} className="input" placeholder="e.g. Bank Statement (12 months)" />
@@ -111,7 +111,7 @@ export default function ChecklistRules() {
             {PROFILE_TYPES.map(p => <option key={p}>{p}</option>)}
           </select>
         </div>
-        <button onClick={addRule} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Add Document</button>
+        <button onClick={addRule} className="btn-primary text-xs px-3 py-2">Add Document</button>
       </div>
     </div>
   );

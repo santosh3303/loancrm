@@ -30,15 +30,15 @@ export default function LoanFiles() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">Loan Files</h1>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm">+ New Loan File</button>
+        <h1 className="text-2xl font-display font-semibold text-navy-700">Loan Files</h1>
+        <button onClick={() => setShowForm(true)} className="btn-primary">+ New Loan File</button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-500">
+          <thead className="bg-navy-50/40 text-left text-navy-700/70">
             <tr><th className="p-3">Lead</th><th>Category</th><th>Amount</th><th>Bank</th><th>Stage</th><th></th></tr>
           </thead>
           <tbody>
@@ -49,7 +49,7 @@ export default function LoanFiles() {
                 <td>{f.loan_amount ? `₹${Number(f.loan_amount).toLocaleString('en-IN')}` : '-'}</td>
                 <td>{f.bank_name || '-'}</td>
                 <td><span className="px-2 py-0.5 rounded bg-gray-100">{f.current_stage}</span></td>
-                <td><Link to={`/loan-files/${f.id}`} className="text-blue-600">Open</Link></td>
+                <td><Link to={`/loan-files/${f.id}`} className="text-amber-700 hover:underline">Open</Link></td>
               </tr>
             ))}
           </tbody>
@@ -58,8 +58,8 @@ export default function LoanFiles() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-            <h2 className="text-lg font-semibold mb-4">New Loan File</h2>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-card animate-fade-in">
+            <h2 className="text-lg font-display font-semibold text-navy-700 mb-4">New Loan File</h2>
 
             <Field label="Lead *">
               <input value={leadQuery} onChange={e => handleLeadSearch(e.target.value)} className="input" placeholder="Search existing lead by name/mobile" />
@@ -69,7 +69,7 @@ export default function LoanFiles() {
                   {leadMatches.map(m => (
                     <div key={m.id} className="flex justify-between">
                       <span>{m.name} — {m.mobile}</span>
-                      <button onClick={() => { setSelectedLead(m); setLeadQuery(m.name); setLeadMatches([]); }} className="text-blue-700 underline">Select</button>
+                      <button onClick={() => { setSelectedLead(m); setLeadQuery(m.name); setLeadMatches([]); }} className="text-amber-700 underline">Select</button>
                     </div>
                   ))}
                 </div>
@@ -114,8 +114,8 @@ export default function LoanFiles() {
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm rounded-md border">Cancel</button>
-              <button onClick={submit} className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white">Create File</button>
+              <button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+              <button onClick={submit} className="btn-primary">Create File</button>
             </div>
           </div>
         </div>

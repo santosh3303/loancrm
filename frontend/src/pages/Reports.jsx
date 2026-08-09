@@ -58,9 +58,9 @@ export default function Reports() {
   );
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Reports</h1>
-      <div className="bg-white border rounded-lg p-4 mb-4 flex gap-3 flex-wrap items-end text-sm">
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+      <h1 className="text-2xl font-display font-semibold text-navy-700 mb-4">Reports</h1>
+      <div className="card p-4 mb-4 flex gap-3 flex-wrap items-end text-sm">
         <div><label className="block text-xs text-gray-500">Category</label>
           <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="input">
             <option value="">Any</option>{['Home Loan', 'Mortgage Loan', 'Personal Loan', 'Business Loan', 'Others'].map(c => <option key={c}>{c}</option>)}
@@ -93,15 +93,15 @@ export default function Reports() {
           <input type="checkbox" checked={filters.group_by_month} onChange={e => setFilters(f => ({ ...f, group_by_month: e.target.checked }))} />
           Group by month
         </label>
-        <button onClick={run} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm">Run Report</button>
-        {(results || grouped) && <button onClick={exportCsv} className="border px-4 py-2 rounded-md text-sm">Export CSV</button>}
-        {(results || grouped) && <button onClick={exportPdf} className="border px-4 py-2 rounded-md text-sm">Export PDF</button>}
+        <button onClick={run} className="btn-primary">Run Report</button>
+        {(results || grouped) && <button onClick={exportCsv} className="btn-secondary">Export CSV</button>}
+        {(results || grouped) && <button onClick={exportPdf} className="btn-secondary">Export PDF</button>}
       </div>
 
       {results && (
-        <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-gray-500">
+            <thead className="bg-navy-50/40 text-left text-navy-700/70">
               <tr><th className="p-3">Lead</th><th>Category</th><th>Amount</th><th>Stage</th><th>Source</th><th>Lead Status</th><th>Bank</th></tr>
             </thead>
             <tbody>
@@ -115,9 +115,9 @@ export default function Reports() {
       {grouped && Object.entries(grouped).sort((a, b) => b[0].localeCompare(a[0])).map(([month, rows]) => (
         <div key={month} className="mb-4">
           <h3 className="font-medium text-sm mb-1">{month} — {rows.length} file(s)</h3>
-          <div className="bg-white border rounded-lg overflow-hidden">
+          <div className="card overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left text-gray-500">
+              <thead className="bg-navy-50/40 text-left text-navy-700/70">
                 <tr><th className="p-3">Lead</th><th>Category</th><th>Amount</th><th>Stage</th><th>Source</th><th>Lead Status</th><th>Bank</th></tr>
               </thead>
               <tbody>{rows.map(r => <Row key={r.id} r={r} />)}</tbody>

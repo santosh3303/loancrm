@@ -9,8 +9,8 @@ export default function AuditLog() {
   useEffect(() => { load(); }, [tableFilter]);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Change History</h1>
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+      <h1 className="text-2xl font-display font-semibold text-navy-700 mb-4">Change History</h1>
       <div className="mb-4">
         <select value={tableFilter} onChange={e => setTableFilter(e.target.value)} className="input w-64">
           <option value="">All records</option>
@@ -18,9 +18,9 @@ export default function AuditLog() {
           <option value="loan_files">Loan Files</option>
         </select>
       </div>
-      <div className="bg-white border rounded-lg overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-500">
+          <thead className="bg-navy-50/40 text-left text-navy-700/70">
             <tr><th className="p-3">When</th><th>Record</th><th>Field</th><th>Old Value</th><th>New Value</th></tr>
           </thead>
           <tbody>

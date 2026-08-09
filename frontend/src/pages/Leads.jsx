@@ -75,21 +75,21 @@ export default function Leads() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">Leads</h1>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm">+ New Lead</button>
+        <h1 className="text-2xl font-display font-semibold text-navy-700">Leads</h1>
+        <button onClick={() => setShowForm(true)} className="btn-primary">+ New Lead</button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-500">
+          <thead className="bg-navy-50/40 text-left text-navy-700/70">
             <tr><th className="p-3">Name</th><th>Mobile</th><th>Loan Category</th><th>Status</th><th>Priority</th><th>Source</th><th></th></tr>
           </thead>
           <tbody>
             {leads.map(l => (
               <tr key={l.id} className="border-t">
-                <td className="p-3"><Link to={`/leads/${l.id}`} className="text-blue-600">{l.name}</Link></td>
+                <td className="p-3"><Link to={`/leads/${l.id}`} className="text-amber-700 hover:underline">{l.name}</Link></td>
                 <td>{l.mobile}</td>
                 <td>{l.loan_category || '-'}</td>
                 <td><span className="px-2 py-0.5 rounded bg-gray-100">{l.qualification_status}</span></td>
@@ -104,8 +104,8 @@ export default function Leads() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">New Lead</h2>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-card animate-fade-in">
+            <h2 className="text-lg font-display font-semibold text-navy-700 mb-4">New Lead</h2>
 
             <Field label="Lead Date">
               <input type="date" value={form.lead_date} onChange={e => setForm(f => ({ ...f, lead_date: e.target.value }))} className="input" />
@@ -177,8 +177,8 @@ export default function Leads() {
             </Field>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm rounded-md border">Cancel</button>
-              <button onClick={submit} className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white">Save Lead</button>
+              <button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+              <button onClick={submit} className="btn-primary">Save Lead</button>
             </div>
           </div>
         </div>
@@ -197,7 +197,7 @@ function MatchBox({ matches, onUse, onDismiss }) {
       {matches.map(m => (
         <div key={m.id} className="flex justify-between items-center">
           <span>{m.name} — {m.mobile || 'no number'} {m.location ? `— ${m.location}` : ''}</span>
-          <button onClick={() => onUse(m)} className="text-blue-700 underline">Use this</button>
+          <button onClick={() => onUse(m)} className="text-amber-700 underline">Use this</button>
         </div>
       ))}
       <button onClick={onDismiss} className="text-gray-500">Different person, ignore</button>

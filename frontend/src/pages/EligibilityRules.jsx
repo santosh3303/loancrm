@@ -20,13 +20,13 @@ export default function EligibilityRules() {
   const remove = async (id) => { await api.deleteEligibilityRule(id); refresh(); };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-1">Eligibility Rules</h1>
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+      <h1 className="text-2xl font-display font-semibold text-navy-700 mb-1">Eligibility Rules</h1>
       <p className="text-sm text-gray-500 mb-4">These drive the auto-suggested "key points to discuss" on each Loan File's Banker Discussion Summary.</p>
 
-      <div className="bg-white border rounded-lg overflow-hidden mb-4">
+      <div className="card overflow-hidden mb-4">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-500"><tr><th className="p-3">Category</th><th>Condition</th><th>Threshold</th><th>Message</th><th>Active</th><th></th></tr></thead>
+          <thead className="bg-navy-50/40 text-left text-navy-700/70"><tr><th className="p-3">Category</th><th>Condition</th><th>Threshold</th><th>Message</th><th>Active</th><th></th></tr></thead>
           <tbody>
             {rules.map(r => (
               <tr key={r.id} className="border-t">
@@ -43,7 +43,7 @@ export default function EligibilityRules() {
         </table>
       </div>
 
-      <div className="bg-white border rounded-lg p-4 flex gap-2 items-end flex-wrap text-sm">
+      <div className="card p-4 flex gap-2 items-end flex-wrap text-sm">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Loan Category</label>
           <select value={form.loan_category} onChange={e => setForm(f => ({ ...f, loan_category: e.target.value }))} className="input">
@@ -65,7 +65,7 @@ export default function EligibilityRules() {
           <label className="block text-xs text-gray-500 mb-1">Message shown when triggered</label>
           <input value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} className="input" />
         </div>
-        <button onClick={add} className="bg-blue-600 text-white text-xs px-3 py-2 rounded">Add Rule</button>
+        <button onClick={add} className="btn-primary text-xs px-3 py-2">Add Rule</button>
       </div>
     </div>
   );
