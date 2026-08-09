@@ -15,9 +15,24 @@ export default function Dashboard() {
     } catch { return DEFAULT_WIDGETS; }
   });
   const [customizing, setCustomizing] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => { api.getDashboard().then(setData); }, []);
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets)); }, [widgets]);
+
+  const loadSampleData = async () => {
+    if (!confirm('This will add sample leads, loan files, and contacts to explore the app. It will NOT delete anything you already have. Continue?')) return;
+    setSeeding(true);
+    try {
+      await api.seedDemoData();
+      const refreshed = await api.getDashboard();
+      setData(refreshed);
+      alert('Sample data added! Explore Leads, Loan Files, and Contacts to see it.');
+    } catch (e) {
+      alert('Something went wrong adding sample data: ' + e.message);
+    }
+    setSeeding(false);
+  };
 
   const toggleWidget = (w) => {
     setWidgets(cur => cur.includes(w) ? cur.filter(x => x !== w) : [...cur, w]);
@@ -39,9 +54,14 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <button onClick={() => setCustomizing(c => !c)} className="text-sm border px-3 py-1.5 rounded-md">
-          {customizing ? 'Done' : 'Customize'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={loadSampleData} disabled={seeding} className="text-sm border px-3 py-1.5 rounded-md bg-green-50 border-green-200 text-green-700">
+            {seeding ? 'Loading...' : 'Load Sample Data'}
+          </button>
+          <button onClick={() => setCustomizing(c => !c)} className="text-sm border px-3 py-1.5 rounded-md">
+            {customizing ? 'Done' : 'Customize'}
+          </button>
+        </div>
       </div>
 
       {customizing && (

@@ -455,6 +455,145 @@ app.delete('/api/eligibility-rules/:id', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
+
+// ---------- DEMO DATA SEEDING ----------
+app.post('/api/seed-demo-data', async (req, res) => {
+  try {
+    const mkContact = async (data) => {
+      const info = await db.run(`
+        INSERT INTO contacts (role, name, mobile, location, lead_date, qualification_status, priority,
+          source, campaign_name, referred_by_contact_id, cibil_score, profile_type, profile_detail,
+          monthly_income, loan_category, loan_subcategory, loan_amount, additional_info)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `, [data.role, data.name, data.mobile || null, data.location || null, data.lead_date || null,
+          data.qualification_status || null, data.priority || null, data.source || null, data.campaign_name || null,
+          data.referred_by_contact_id || null, data.cibil_score || null, data.profile_type || null,
+          data.profile_detail || null, data.monthly_income || null, data.loan_category || null,
+          data.loan_subcategory || null, data.loan_amount || null, data.additional_info || null]);
+      return info.lastInsertRowid;
+    };
+
+    // Connectors
+    const conn1 = await mkContact({ role: 'connector', name: 'Suresh Shah', mobile: '9833000001' });
+    const conn2 = await mkContact({ role: 'connector', name: 'Meena Joshi', mobile: '9833000002' });
+
+    // Bankers
+    const banker1 = await mkContact({ role: 'banker', name: 'Anil Kumar (HDFC)', mobile: '9900000001' });
+    const banker2 = await mkContact({ role: 'banker', name: 'Rekha Nair (ICICI)', mobile: '9900000002' });
+
+    // Leads (varied statuses, sources, some with full qualification detail)
+    const lead1 = await mkContact({ role: 'lead', name: 'Ramesh Patil', mobile: '9820000001', location: 'Thane',
+      lead_date: '2026-08-01', qualification_status: 'Eligible', priority: 'High', source: 'FB Ads',
+      campaign_name: 'Home Loan August', cibil_score: 742, profile_type: 'Salaried', profile_detail: 'IT sector, 6 yrs',
+      monthly_income: 95000, loan_category: 'Home Loan', loan_subcategory: 'Fresh', loan_amount: 3500000 });
+    const lead2 = await mkContact({ role: 'lead', name: 'Priya Sharma', mobile: '9820000002', location: 'Mumbai',
+      lead_date: '2026-08-02', qualification_status: 'Eligible', priority: 'Medium', source: 'Referral',
+      referred_by_contact_id: conn1, cibil_score: 655, profile_type: 'Self-employed', profile_detail: 'Boutique owner, 4 yrs',
+      monthly_income: 70000, loan_category: 'Home Loan', loan_subcategory: 'Resell', loan_amount: 4500000 });
+    const lead3 = await mkContact({ role: 'lead', name: 'Vikas Deshmukh', mobile: '9820000003', location: 'Pune',
+      lead_date: '2026-08-03', qualification_status: 'Valid', priority: 'Medium', source: 'Direct',
+      loan_category: 'Personal Loan', loan_amount: 800000 });
+    const lead4 = await mkContact({ role: 'lead', name: 'Sunita Rane', mobile: '9820000004', location: 'Thane',
+      lead_date: '2026-08-04', qualification_status: 'Not Eligible', priority: 'Low', source: 'FB Ads',
+      campaign_name: 'Personal Loan July' });
+    const lead5 = await mkContact({ role: 'lead', name: 'Anita Kulkarni', mobile: '9820000005', location: 'Nashik',
+      lead_date: '2026-08-05', qualification_status: 'No Response', priority: 'Low', source: 'Referral', referred_by_contact_id: conn2 });
+    const lead6 = await mkContact({ role: 'lead', name: 'Rajesh Iyer', mobile: '9820000006', location: 'Mumbai',
+      lead_date: '2026-08-06', qualification_status: 'Eligible', priority: 'High', source: 'Direct',
+      cibil_score: 780, profile_type: 'Business', profile_detail: 'Trading business, 10 yrs', monthly_income: 150000,
+      loan_category: 'Business Loan', loan_amount: 6000000 });
+
+    // Loan Files
+    const mkFile = async (data) => {
+      const info = await db.run(`
+        INSERT INTO loan_files (lead_contact_id, loan_category, loan_subcategory, loan_amount, property_category,
+          property_type, banker_contact_id, bank_name, current_stage, commission_expected, commission_status)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+      `, [data.lead_contact_id, data.loan_category, data.loan_subcategory || null, data.loan_amount || null,
+          data.property_category || null, data.property_type || null, data.banker_contact_id || null,
+          data.bank_name || null, data.current_stage || 'File Prep', data.commission_expected || null,
+          data.commission_status || 'Pending']);
+      return info.lastInsertRowid;
+    };
+
+    const file1 = await mkFile({ lead_contact_id: lead1, loan_category: 'Home Loan', loan_subcategory: 'Fresh',
+      loan_amount: 3500000, property_category: 'Corporation', property_type: 'Residential Flat',
+      banker_contact_id: banker1, bank_name: 'HDFC', current_stage: 'Credit PD', commission_expected: 35000, commission_status: 'Pending' });
+    const file2 = await mkFile({ lead_contact_id: lead2, loan_category: 'Home Loan', loan_subcategory: 'Resell',
+      loan_amount: 4500000, property_category: 'Corporation', property_type: 'Residential Flat',
+      banker_contact_id: banker2, bank_name: 'ICICI', current_stage: 'File Login', commission_expected: 45000, commission_status: 'Pending' });
+    const file3 = await mkFile({ lead_contact_id: lead3, loan_category: 'Personal Loan',
+      loan_amount: 800000, banker_contact_id: banker1, bank_name: 'HDFC', current_stage: 'Docs Prep',
+      commission_expected: 8000, commission_status: 'Pending' });
+    const file4 = await mkFile({ lead_contact_id: lead6, loan_category: 'Business Loan',
+      loan_amount: 6000000, banker_contact_id: banker2, bank_name: 'ICICI', current_stage: 'Sanction Letter',
+      commission_expected: 60000, commission_status: 'Partially Received' });
+
+    // Applicants
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file1, 'Ramesh Patil', '9820000001', 'Main Applicant', 'Full Set']);
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file1, 'Sunita Patil', '9820000011', 'Co-Applicant', 'KYC Only']);
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file2, 'Priya Sharma', '9820000002', 'Main Applicant', 'Full Set']);
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file2, 'Ramesh Sharma', '9820000012', 'Co-Applicant', 'Full Set']);
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file2, 'Deepak Mehta', '9820000013', 'Guarantor', 'Full Set']);
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file3, 'Vikas Deshmukh', '9820000003', 'Main Applicant', 'Full Set']);
+    await db.run(`INSERT INTO file_applicants (loan_file_id, name, mobile, applicant_role, document_tier) VALUES (?,?,?,?,?)`,
+      [file4, 'Rajesh Iyer', '9820000006', 'Main Applicant', 'Full Set']);
+
+    // Follow-ups (mix of pending/overdue/done)
+    const fu = async (loan_file_id, party_type, method, due_date, status, notes) =>
+      db.run(`INSERT INTO follow_ups (loan_file_id, party_type, method, due_date, status, notes) VALUES (?,?,?,?,?,?)`,
+        [loan_file_id, party_type, method, due_date, status, notes]);
+    await fu(file1, 'Bank', 'Call', '2026-08-05', 'Done', 'Confirmed PD scheduled');
+    await fu(file1, 'Lead', 'WhatsApp', new Date().toISOString().slice(0, 10), 'Pending', 'Share updated salary slip');
+    await fu(file2, 'Lead', 'Visit', '2026-08-06', 'Pending', 'Property document pickup');
+    await fu(file3, 'Bank', 'Call', '2026-08-04', 'Pending', 'Follow up on file login status');
+    await fu(file4, 'Bank', 'Visit', '2026-08-07', 'Done', 'Sanction letter collected');
+
+    // Queries (mix open/closed)
+    const q = async (loan_file_id, raised_by, priority, description, status) =>
+      db.run(`INSERT INTO queries (loan_file_id, raised_by, priority, description, status) VALUES (?,?,?,?,?)`,
+        [loan_file_id, raised_by, priority, description, status]);
+    await q(file1, 'Bank', 'High', 'Latest 3 months salary slip required', 'Open');
+    await q(file2, 'Bank', 'Medium', 'Property chain documents incomplete', 'Open');
+    await q(file3, 'Lead', 'Low', 'Lead requested revised EMI schedule', 'Closed');
+
+    // Communication log
+    const cl = async (loan_file_id, party_type, mode, log_date, content) =>
+      db.run(`INSERT INTO communication_log (loan_file_id, party_type, mode, log_date, content) VALUES (?,?,?,?,?)`,
+        [loan_file_id, party_type, mode, log_date, content]);
+    await cl(file1, 'Bank', 'Call', '2026-08-05', 'Discussed PD requirements, scheduled for next week');
+    await cl(file1, 'Lead', 'WhatsApp', '2026-08-04', 'Confirmed availability for property visit');
+    await cl(file2, 'Source', 'Call', '2026-08-03', 'Connector confirmed lead is genuine, pre-qualified');
+
+    // HDFC bank-specific checklist (copy generic as starting point, then add a property-specific doc)
+    const generic = await db.all(`SELECT * FROM doc_checklist_rules WHERE bank_name = 'Generic'`);
+    const existingHdfc = await db.get(`SELECT 1 as x FROM doc_checklist_rules WHERE bank_name = 'HDFC' LIMIT 1`);
+    if (!existingHdfc) {
+      for (const r of generic) {
+        await db.run(`
+          INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common, property_type, profile_type)
+          VALUES (?,?,?,?,?,?,?,?)
+        `, ['HDFC', r.loan_category, r.loan_subcategory, r.document_tier, r.document_name, r.applies_to_common, r.property_type, r.profile_type]);
+      }
+      await db.run(`
+        INSERT INTO doc_checklist_rules (bank_name, loan_category, document_tier, document_name, applies_to_common, property_type)
+        VALUES (?,?,?,?,?,?)
+      `, ['HDFC', 'Home Loan', 'Full Set', 'Society NOC / Share Certificate', 0, 'Residential Flat']);
+    }
+
+    res.json({ seeded: true, leads: 6, connectors: 2, bankers: 2, loanFiles: 4 });
+  } catch (err) {
+    console.error('Seed error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 db.init().then(() => {
   app.listen(PORT, () => console.log(`Loan CRM backend running on http://localhost:${PORT}`));
 }).catch(err => {

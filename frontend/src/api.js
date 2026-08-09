@@ -52,4 +52,6 @@ export const api = {
   addEligibilityRule: (data) => req('POST', '/eligibility-rules', data),
   updateEligibilityRule: (id, data) => req('PUT', `/eligibility-rules/${id}`, data),
   deleteEligibilityRule: (id) => req('DELETE', `/eligibility-rules/${id}`),
+
+  seedDemoData: () => req('POST', '/seed-demo-data'),
 };
