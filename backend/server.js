@@ -44,15 +44,27 @@ app.post('/api/contacts', async (req, res) => {
   const c = req.body;
   const info = await db.run(`
     INSERT INTO contacts (role, name, mobile, location, lead_date, qualification_status, priority,
-      source, campaign_name, referred_by_contact_id, cibil_score, profile_type, profile_detail, additional_info)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      source, campaign_name, referred_by_contact_id, cibil_score, profile_type, profile_detail,
+      monthly_income, loan_category, loan_subcategory, loan_amount, additional_info)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `, [
     c.role, c.name, c.mobile || null, c.location || null, c.lead_date || null,
     c.qualification_status || null, c.priority || null, c.source || null, c.campaign_name || null,
     c.referred_by_contact_id || null, c.cibil_score || null, c.profile_type || null,
-    c.profile_detail || null, c.additional_info || null
+    c.profile_detail || null, c.monthly_income || null, c.loan_category || null,
+    c.loan_subcategory || null, c.loan_amount || null, c.additional_info || null
   ]);
-  res.json(await db.get(`SELECT * FROM contacts WHERE id = ?`, [info.lastInsertRowid]));
+  const newContact = await db.get(`SELECT * FROM contacts WHERE id = ?`, [info.lastInsertRowid]);
+
+  // Auto-create a first follow-up task when a new Lead is captured
+  if (c.role === 'lead') {
+    await db.run(`
+      INSERT INTO follow_ups (lead_contact_id, party_type, method, due_date, status, notes)
+      VALUES (?,?,?,date('now'),?,?)
+    `, [newContact.id, 'Lead', 'WhatsApp', 'Pending', 'Qualify new lead']);
+  }
+
+  res.json(newContact);
 });
 
 app.put('/api/contacts/:id', async (req, res) => {
@@ -62,11 +74,13 @@ app.put('/api/contacts/:id', async (req, res) => {
   await db.run(`
     UPDATE contacts SET role=?, name=?, mobile=?, location=?, lead_date=?,
       qualification_status=?, priority=?, source=?, campaign_name=?,
-      referred_by_contact_id=?, cibil_score=?, profile_type=?, profile_detail=?, additional_info=?
+      referred_by_contact_id=?, cibil_score=?, profile_type=?, profile_detail=?,
+      monthly_income=?, loan_category=?, loan_subcategory=?, loan_amount=?, additional_info=?
     WHERE id=?
   `, [c.role, c.name, c.mobile, c.location, c.lead_date, c.qualification_status, c.priority,
       c.source, c.campaign_name, c.referred_by_contact_id, c.cibil_score, c.profile_type,
-      c.profile_detail, c.additional_info, c.id]);
+      c.profile_detail, c.monthly_income, c.loan_category, c.loan_subcategory, c.loan_amount,
+      c.additional_info, c.id]);
   for (const k of Object.keys(req.body)) await auditLog('contacts', c.id, k, existing[k], req.body[k]);
   res.json(await db.get(`SELECT * FROM contacts WHERE id = ?`, [req.params.id]));
 });
@@ -144,6 +158,23 @@ app.put('/api/loan-files/:id', async (req, res) => {
   `, [f.loan_category, f.loan_subcategory, f.loan_amount, f.property_category, f.property_type,
       f.banker_contact_id, f.bank_name, f.current_stage, f.commission_expected, f.commission_status, f.id]);
   for (const k of Object.keys(req.body)) await auditLog('loan_files', f.id, k, existing[k], req.body[k]);
+
+  // Auto-create a follow-up whenever the stage changes, so nothing falls through
+  if (req.body.current_stage && req.body.current_stage !== existing.current_stage) {
+    const bankPivotStages = [
+      'PF Clearance', 'RCU/FCU', 'Valuation Visit', 'Employment Verification', 'Credit PD',
+      'Query Resolution', 'Offer Discussion', 'Sanction Letter', 'T&C Discussion',
+      'Property Registration', 'Post-Sanction Docs', 'Agreement Vetting', 'Final PF Payment',
+      'OCR Clearance', 'PDC Submission', 'Agreement Signing', 'Disbursement Query', 'Disbursed'
+    ];
+    const isBankSide = bankPivotStages.includes(req.body.current_stage);
+    const dueDate = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    await db.run(`
+      INSERT INTO follow_ups (loan_file_id, party_type, method, due_date, status, notes)
+      VALUES (?,?,?,?,?,?)
+    `, [f.id, isBankSide ? 'Bank' : 'Lead', 'Call', dueDate, 'Pending', `Follow up: file moved to ${req.body.current_stage}`]);
+  }
+
   res.json(await db.get(`SELECT * FROM loan_files WHERE id = ?`, [req.params.id]));
 });
 
@@ -163,35 +194,51 @@ app.put('/api/applicants/:id', async (req, res) => {
 });
 
 app.get('/api/loan-files/:id/docs-list', async (req, res) => {
-  const file = await db.get(`SELECT * FROM loan_files WHERE id = ?`, [req.params.id]);
+  const file = await db.get(`
+    SELECT lf.*, c.profile_type as lead_profile_type
+    FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id WHERE lf.id = ?
+  `, [req.params.id]);
   if (!file) return res.status(404).json({ error: 'Not found' });
   const applicants = await db.all(`SELECT * FROM file_applicants WHERE loan_file_id = ?`, [req.params.id]);
   const bank = file.bank_name || 'Generic';
 
-  const getDocsFor = async (tier) => {
-    let rule = await db.all(`
-      SELECT document_name FROM doc_checklist_rules
+  // Additive model: base (property_type/profile_type = NULL) docs always apply,
+  // plus any extra docs specifically tagged for this file's property type or
+  // (for the Main Applicant) the lead's profile type.
+  const getDocsFor = async (tier, isMainApplicant) => {
+    let baseBank = bank;
+    const hasBankRules = await db.get(`SELECT 1 as x FROM doc_checklist_rules WHERE bank_name = ? LIMIT 1`, [bank]);
+    if (!hasBankRules) baseBank = 'Generic';
+
+    const rows = await db.all(`
+      SELECT document_name, property_type, profile_type FROM doc_checklist_rules
       WHERE bank_name = ? AND loan_category = ? AND document_tier = ? AND applies_to_common = 0
-    `, [bank, file.loan_category, tier]);
-    if (!rule.length) {
-      rule = await db.all(`
-        SELECT document_name FROM doc_checklist_rules
-        WHERE bank_name = 'Generic' AND loan_category = ? AND document_tier = ? AND applies_to_common = 0
-      `, [file.loan_category, tier]);
+    `, [baseBank, file.loan_category, tier]);
+
+    const docs = [];
+    for (const r of rows) {
+      const propertyMatches = !r.property_type || r.property_type === file.property_type;
+      const profileMatches = !r.profile_type || (isMainApplicant && r.profile_type === file.lead_profile_type);
+      if (propertyMatches && (!r.profile_type || profileMatches)) {
+        docs.push(r.document_name);
+      }
     }
-    return rule.map(r => r.document_name);
+    return docs;
   };
 
   const bankHasCommon = await db.get(`SELECT 1 as x FROM doc_checklist_rules WHERE bank_name = ? AND applies_to_common=1 LIMIT 1`, [bank]);
   const effectiveBank = bankHasCommon ? bank : 'Generic';
   const commonRows = await db.all(`
-    SELECT document_name FROM doc_checklist_rules WHERE loan_category = ? AND applies_to_common = 1 AND bank_name = ?
+    SELECT document_name, property_type FROM doc_checklist_rules WHERE loan_category = ? AND applies_to_common = 1 AND bank_name = ?
   `, [file.loan_category, effectiveBank]);
-  const common = commonRows.map(r => r.document_name);
+  const common = commonRows
+    .filter(r => !r.property_type || r.property_type === file.property_type)
+    .map(r => r.document_name);
 
   const applicantsWithDocs = [];
   for (const a of applicants) {
-    applicantsWithDocs.push({ ...a, documents: await getDocsFor(a.document_tier) });
+    const isMain = a.applicant_role === 'Main Applicant';
+    applicantsWithDocs.push({ ...a, documents: await getDocsFor(a.document_tier, isMain) });
   }
 
   res.json({ bank, loan_category: file.loan_category, applicants: applicantsWithDocs, common_documents: common });
@@ -199,16 +246,29 @@ app.get('/api/loan-files/:id/docs-list', async (req, res) => {
 
 app.get('/api/loan-files/:id/banker-summary', async (req, res) => {
   const file = await db.get(`
-    SELECT lf.*, c.name as lead_name, c.location, c.cibil_score, c.profile_type, c.profile_detail
+    SELECT lf.*, c.name as lead_name, c.location, c.cibil_score, c.profile_type, c.profile_detail, c.monthly_income
     FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id WHERE lf.id = ?
   `, [req.params.id]);
   if (!file) return res.status(404).json({ error: 'Not found' });
 
+  const rules = await db.all(`
+    SELECT * FROM eligibility_rules WHERE active = 1 AND (loan_category = ? OR loan_category = 'Any')
+  `, [file.loan_category]);
+
   const flags = [];
-  if (file.cibil_score && file.cibil_score < 700) flags.push({ type: 'rule', text: `CIBIL ${file.cibil_score} — below 700, may need justification` });
-  if (file.loan_amount && file.profile_type) {
-    flags.push({ type: 'rule', text: `Verify income-to-loan ratio before banker discussion` });
+  for (const rule of rules) {
+    if (rule.condition_type === 'min_cibil' && file.cibil_score != null && file.cibil_score < rule.threshold) {
+      flags.push({ type: 'rule', text: `${rule.message} (CIBIL: ${file.cibil_score})` });
+    }
+    if (rule.condition_type === 'max_loan_to_income_ratio' && file.loan_amount && file.monthly_income) {
+      const annualIncome = file.monthly_income * 12;
+      const ratio = file.loan_amount / annualIncome;
+      if (ratio > rule.threshold) {
+        flags.push({ type: 'rule', text: `${rule.message} (ratio: ${ratio.toFixed(1)}x annual income)` });
+      }
+    }
   }
+
   const manualNotes = await db.all(`SELECT description FROM queries WHERE loan_file_id = ? AND status='Open'`, [req.params.id]);
   manualNotes.forEach(q => flags.push({ type: 'manual', text: q.description }));
 
@@ -242,6 +302,15 @@ app.post('/api/queries', async (req, res) => {
     INSERT INTO queries (loan_file_id, raised_by, priority, description, status)
     VALUES (?,?,?,?,?)
   `, [q.loan_file_id, q.raised_by, q.priority, q.description, q.status || 'Open']);
+
+  // Auto-create a follow-up task to chase this query
+  const partyMap = { Bank: 'Bank', Lead: 'Lead', Connector: 'Source' };
+  const dueDate = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+  await db.run(`
+    INSERT INTO follow_ups (loan_file_id, party_type, method, due_date, status, notes)
+    VALUES (?,?,?,?,?,?)
+  `, [q.loan_file_id, partyMap[q.raised_by] || 'Bank', 'Call', dueDate, 'Pending', `Resolve query: ${q.description}`]);
+
   res.json(await db.get(`SELECT * FROM queries WHERE id = ?`, [info.lastInsertRowid]));
 });
 app.put('/api/queries/:id', async (req, res) => {
@@ -275,9 +344,9 @@ app.get('/api/dashboard', async (req, res) => {
 
 // ---------- REPORTS ----------
 app.get('/api/reports/loan-files', async (req, res) => {
-  const { category, stage, source, banker, from, to } = req.query;
+  const { category, stage, source, banker, status, from, to, sort_by, sort_dir, group_by_month } = req.query;
   let sql = `
-    SELECT lf.*, c.name as lead_name, c.mobile as lead_mobile, c.source
+    SELECT lf.*, c.name as lead_name, c.mobile as lead_mobile, c.source, c.qualification_status
     FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id WHERE 1=1
   `;
   const args = [];
@@ -285,9 +354,28 @@ app.get('/api/reports/loan-files', async (req, res) => {
   if (stage) { sql += ` AND lf.current_stage = ?`; args.push(stage); }
   if (source) { sql += ` AND c.source = ?`; args.push(source); }
   if (banker) { sql += ` AND lf.bank_name = ?`; args.push(banker); }
+  if (status) { sql += ` AND c.qualification_status = ?`; args.push(status); }
   if (from) { sql += ` AND lf.created_at >= ?`; args.push(from); }
   if (to) { sql += ` AND lf.created_at <= ?`; args.push(to); }
-  res.json(await db.all(sql, args));
+
+  const sortableFields = { date: 'lf.created_at', amount: 'lf.loan_amount', stage: 'lf.current_stage', name: 'c.name' };
+  const sortField = sortableFields[sort_by] || 'lf.created_at';
+  const sortDirection = sort_dir === 'asc' ? 'ASC' : 'DESC';
+  sql += ` ORDER BY ${sortField} ${sortDirection}`;
+
+  const rows = await db.all(sql, args);
+
+  if (group_by_month === 'true') {
+    const grouped = {};
+    for (const r of rows) {
+      const month = (r.created_at || '').slice(0, 7); // YYYY-MM
+      if (!grouped[month]) grouped[month] = [];
+      grouped[month].push(r);
+    }
+    return res.json({ grouped: true, months: grouped });
+  }
+
+  res.json(rows);
 });
 
 // ---------- AUDIT LOG ----------
@@ -320,9 +408,10 @@ app.get('/api/doc-checklist-rules/banks', async (req, res) => {
 app.post('/api/doc-checklist-rules', async (req, res) => {
   const r = req.body;
   const info = await db.run(`
-    INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common)
-    VALUES (?,?,?,?,?,?)
-  `, [r.bank_name, r.loan_category, r.loan_subcategory || null, r.document_tier, r.document_name, r.applies_to_common ? 1 : 0]);
+    INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common, property_type, profile_type)
+    VALUES (?,?,?,?,?,?,?,?)
+  `, [r.bank_name, r.loan_category, r.loan_subcategory || null, r.document_tier, r.document_name,
+      r.applies_to_common ? 1 : 0, r.property_type || null, r.profile_type || null]);
   res.json(await db.get(`SELECT * FROM doc_checklist_rules WHERE id = ?`, [info.lastInsertRowid]));
 });
 
@@ -337,11 +426,32 @@ app.post('/api/doc-checklist-rules/copy-bank', async (req, res) => {
   const source = await db.all(`SELECT * FROM doc_checklist_rules WHERE bank_name = ?`, [from_bank_name || 'Generic']);
   for (const r of source) {
     await db.run(`
-      INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common)
-      VALUES (?,?,?,?,?,?)
-    `, [new_bank_name, r.loan_category, r.loan_subcategory, r.document_tier, r.document_name, r.applies_to_common]);
+      INSERT INTO doc_checklist_rules (bank_name, loan_category, loan_subcategory, document_tier, document_name, applies_to_common, property_type, profile_type)
+      VALUES (?,?,?,?,?,?,?,?)
+    `, [new_bank_name, r.loan_category, r.loan_subcategory, r.document_tier, r.document_name, r.applies_to_common, r.property_type, r.profile_type]);
   }
   res.json({ copied: source.length });
+});
+
+// ---------- ELIGIBILITY RULES ----------
+app.get('/api/eligibility-rules', async (req, res) => {
+  res.json(await db.all(`SELECT * FROM eligibility_rules ORDER BY loan_category, condition_type`));
+});
+app.post('/api/eligibility-rules', async (req, res) => {
+  const r = req.body;
+  const info = await db.run(`
+    INSERT INTO eligibility_rules (loan_category, condition_type, threshold, message, active)
+    VALUES (?,?,?,?,?)
+  `, [r.loan_category, r.condition_type, r.threshold, r.message, r.active === false ? 0 : 1]);
+  res.json(await db.get(`SELECT * FROM eligibility_rules WHERE id = ?`, [info.lastInsertRowid]));
+});
+app.put('/api/eligibility-rules/:id', async (req, res) => {
+  await db.run(`UPDATE eligibility_rules SET active = ? WHERE id = ?`, [req.body.active ? 1 : 0, req.params.id]);
+  res.json(await db.get(`SELECT * FROM eligibility_rules WHERE id = ?`, [req.params.id]));
+});
+app.delete('/api/eligibility-rules/:id', async (req, res) => {
+  await db.run(`DELETE FROM eligibility_rules WHERE id = ?`, [req.params.id]);
+  res.json({ deleted: true });
 });
 
 const PORT = process.env.PORT || 4000;

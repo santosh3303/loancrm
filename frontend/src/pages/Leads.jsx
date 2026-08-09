@@ -66,7 +66,9 @@ export default function Leads() {
       role: 'lead', name: form.name, mobile: form.mobile, location: form.location,
       lead_date: form.lead_date, qualification_status: form.qualification_status, priority: form.priority,
       source: form.source, campaign_name: form.source === 'FB Ads' ? form.campaign_name : null,
-      referred_by_contact_id: referredById, additional_info: form.additional_info
+      referred_by_contact_id: referredById, additional_info: form.additional_info,
+      loan_category: form.loan_category, loan_subcategory: form.loan_subcategory,
+      loan_amount: Number(form.loan_amount) || null
     });
     setForm(emptyForm); setShowForm(false); setDupWarning(null);
     load();
@@ -82,14 +84,14 @@ export default function Leads() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-500">
-            <tr><th className="p-3">Name</th><th>Mobile</th><th>Location</th><th>Status</th><th>Priority</th><th>Source</th><th></th></tr>
+            <tr><th className="p-3">Name</th><th>Mobile</th><th>Loan Category</th><th>Status</th><th>Priority</th><th>Source</th><th></th></tr>
           </thead>
           <tbody>
             {leads.map(l => (
               <tr key={l.id} className="border-t">
-                <td className="p-3">{l.name}</td>
+                <td className="p-3"><Link to={`/leads/${l.id}`} className="text-blue-600">{l.name}</Link></td>
                 <td>{l.mobile}</td>
-                <td>{l.location || '-'}</td>
+                <td>{l.loan_category || '-'}</td>
                 <td><span className="px-2 py-0.5 rounded bg-gray-100">{l.qualification_status}</span></td>
                 <td>{l.priority}</td>
                 <td>{l.source}</td>

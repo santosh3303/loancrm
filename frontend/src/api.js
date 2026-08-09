@@ -47,4 +47,9 @@ export const api = {
   addChecklistRule: (data) => req('POST', '/doc-checklist-rules', data),
   deleteChecklistRule: (id) => req('DELETE', `/doc-checklist-rules/${id}`),
   copyBankRules: (data) => req('POST', '/doc-checklist-rules/copy-bank', data),
+
+  getEligibilityRules: () => req('GET', '/eligibility-rules'),
+  addEligibilityRule: (data) => req('POST', '/eligibility-rules', data),
+  updateEligibilityRule: (id, data) => req('PUT', `/eligibility-rules/${id}`, data),
+  deleteEligibilityRule: (id) => req('DELETE', `/eligibility-rules/${id}`),
 };

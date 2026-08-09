@@ -5,9 +5,12 @@ import ContactActions from '../components/ContactActions';
 
 const STAGES = [
   'File Prep', 'Docs Prep', 'Docs Collection', 'File Ready', 'File Login',
-  'RCU/FCU', 'Verification', 'Credit PD', 'Underwriting', 'Vetting', 'Sanction', 'Disbursal', 'Disbursed'
+  'PF Clearance', 'RCU/FCU', 'Valuation Visit', 'Employment Verification', 'Credit PD',
+  'Query Resolution', 'Offer Discussion', 'Sanction Letter', 'T&C Discussion',
+  'Property Registration', 'Post-Sanction Docs', 'Agreement Vetting', 'Final PF Payment',
+  'OCR Clearance', 'PDC Submission', 'Agreement Signing', 'Disbursement Query', 'Disbursed'
 ];
-const BANK_PIVOT_INDEX = STAGES.indexOf('File Login');
+const BANK_PIVOT_INDEX = STAGES.indexOf('PF Clearance');
 
 export default function LoanFileDetail() {
   const { id } = useParams();

@@ -24,6 +24,10 @@ CREATE TABLE contacts (
     cibil_score INTEGER,
     profile_type TEXT,           -- Salaried / Self-employed / Business
     profile_detail TEXT,         -- sector, years, etc.
+    monthly_income REAL,         -- used for eligibility ratio checks
+    loan_category TEXT,          -- captured at first enquiry (before a Loan File exists)
+    loan_subcategory TEXT,
+    loan_amount REAL,
     additional_info TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -63,6 +67,9 @@ CREATE TABLE file_applicants (
 );
 
 -- Document checklist rules — editable per bank + loan category
+-- property_type / profile_type are optional (NULL = applies regardless);
+-- when set, that rule ADDS extra documents on top of the general list
+-- for files/applicants matching that specific property type or profile.
 CREATE TABLE doc_checklist_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bank_name TEXT NOT NULL,
@@ -70,7 +77,21 @@ CREATE TABLE doc_checklist_rules (
     loan_subcategory TEXT,
     document_tier TEXT NOT NULL CHECK (document_tier IN ('Full Set','KYC Only')),
     document_name TEXT NOT NULL,
-    applies_to_common BOOLEAN DEFAULT 0   -- 1 = applies once per file, not per applicant (e.g. Property Docs)
+    applies_to_common BOOLEAN DEFAULT 0,   -- 1 = applies once per file, not per applicant (e.g. Property Docs)
+    property_type TEXT,        -- NULL = any property type
+    profile_type TEXT          -- NULL = any profile; only evaluated for Main Applicant
+);
+
+-- Eligibility rules — configurable per loan category, drive the
+-- Banker Discussion Summary's auto-suggested red flags.
+CREATE TABLE eligibility_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    loan_category TEXT NOT NULL,        -- or 'Any' to apply to all categories
+    condition_type TEXT NOT NULL CHECK (condition_type IN
+        ('min_cibil', 'max_loan_to_income_ratio')),
+    threshold REAL NOT NULL,
+    message TEXT NOT NULL,              -- shown when the rule is triggered
+    active BOOLEAN DEFAULT 1
 );
 
 -- Follow-ups: forward-looking scheduled tasks, multi-party
