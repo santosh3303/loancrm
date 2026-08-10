@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
+import Breadcrumb from '../components/Breadcrumb';
+import { useToast } from '../components/Toast';
 
 export default function LeadDetail() {
   const { id } = useParams();
   const [lead, setLead] = useState(null);
   const [followUps, setFollowUps] = useState([]);
-  const [saved, setSaved] = useState(false);
+  const toast = useToast();
 
   const load = () => {
     api.getContact(id).then(setLead);
@@ -15,7 +17,7 @@ export default function LeadDetail() {
   };
   useEffect(() => { load(); }, [id]);
 
-  if (!lead) return <div className="p-6">Loading...</div>;
+  if (!lead) return <div className="p-6 text-gray-400">Loading...</div>;
 
   const update = (field, value) => setLead(l => ({ ...l, [field]: value }));
 
@@ -29,12 +31,12 @@ export default function LeadDetail() {
       loan_amount: lead.loan_amount ? Number(lead.loan_amount) : null,
       additional_info: lead.additional_info, location: lead.location
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    toast('Lead details saved.', 'success');
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-6 max-w-2xl mx-auto animate-fade-in">
+      <Breadcrumb items={[{ label: 'Leads', to: '/leads' }, { label: lead.name }]} />
       <div className="flex justify-between items-start mb-4">
         <div>
           <h1 className="text-2xl font-display font-semibold text-navy-700">{lead.name}</h1>
@@ -44,7 +46,7 @@ export default function LeadDetail() {
       </div>
 
       <div className="card p-4 mb-4 space-y-3 text-sm">
-        <h3 className="font-medium">Qualification Details</h3>
+        <h3 className="font-display font-semibold text-navy-700 mb-1">Qualification Details</h3>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Qualification Status">
             <select value={lead.qualification_status || ''} onChange={e => update('qualification_status', e.target.value)} className="input">
@@ -75,7 +77,7 @@ export default function LeadDetail() {
       </div>
 
       <div className="card p-4 mb-4 space-y-3 text-sm">
-        <h3 className="font-medium">Loan Interest (at enquiry stage)</h3>
+        <h3 className="font-display font-semibold text-navy-700 mb-1">Loan Interest (at enquiry stage)</h3>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Loan Category">
             <select value={lead.loan_category || ''} onChange={e => update('loan_category', e.target.value)} className="input">
@@ -109,7 +111,6 @@ export default function LeadDetail() {
       </div>
 
       <div className="flex justify-end gap-2">
-        {saved && <span className="text-green-600 text-sm self-center">Saved</span>}
         <button onClick={save} className="btn-primary">Save Changes</button>
       </div>
     </div>

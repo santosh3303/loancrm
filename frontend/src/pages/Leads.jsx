@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
 import ContactActions from '../components/ContactActions';
+import { useToast } from '../components/Toast';
 
 const emptyForm = {
   lead_date: new Date().toISOString().slice(0, 10),
@@ -20,6 +21,7 @@ export default function Leads() {
   const [refMatches, setRefMatches] = useState([]);
   const [dupWarning, setDupWarning] = useState(null);
   const debounceRef = useRef();
+  const toast = useToast();
 
   const load = () => api.getContacts('lead').then(setLeads);
   useEffect(() => { load(); }, []);
@@ -71,6 +73,7 @@ export default function Leads() {
       loan_amount: Number(form.loan_amount) || null
     });
     setForm(emptyForm); setShowForm(false); setDupWarning(null);
+    toast('Lead added.', 'success');
     load();
   };
 
@@ -88,7 +91,7 @@ export default function Leads() {
           </thead>
           <tbody>
             {leads.map(l => (
-              <tr key={l.id} className="border-t">
+              <tr key={l.id} className="border-t border-gray-50 hover:bg-navy-50/30 transition-colors">
                 <td className="p-3"><Link to={`/leads/${l.id}`} className="text-amber-700 hover:underline">{l.name}</Link></td>
                 <td>{l.mobile}</td>
                 <td>{l.loan_category || '-'}</td>

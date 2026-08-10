@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
 import StageTracker, { STAGES } from '../components/StageTracker';
+import Breadcrumb from '../components/Breadcrumb';
+import { useToast } from '../components/Toast';
 
 export default function LoanFileDetail() {
   const { id } = useParams();
@@ -10,6 +12,7 @@ export default function LoanFileDetail() {
   const [docsList, setDocsList] = useState(null);
   const [bankerSummary, setBankerSummary] = useState(null);
   const [tab, setTab] = useState('overview');
+  const toast = useToast();
 
   const load = () => api.getLoanFile(id).then(setFile);
   useEffect(() => { load(); }, [id]);
@@ -18,6 +21,7 @@ export default function LoanFileDetail() {
 
   const changeStage = async (stage) => {
     await api.updateLoanFile(id, { current_stage: stage });
+    toast(`Stage updated to ${stage}.`, 'success');
     load();
   };
 
@@ -26,6 +30,7 @@ export default function LoanFileDetail() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto animate-fade-in">
+      <Breadcrumb items={[{ label: 'Loan Files', to: '/loan-files' }, { label: file.lead_name }]} />
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-display font-semibold text-navy-700">{file.lead_name}</h1>

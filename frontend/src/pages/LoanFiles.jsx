@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
+import { useToast } from '../components/Toast';
 
 export default function LoanFiles() {
   const [files, setFiles] = useState([]);
@@ -11,6 +12,7 @@ export default function LoanFiles() {
   const [bankers, setBankers] = useState([]);
   const [form, setForm] = useState({ loan_category: 'Home Loan', loan_subcategory: 'Fresh', loan_amount: '', bank_name: '', banker_contact_id: '', property_category: '', property_type: '' });
   const debounceRef = useRef();
+  const toast = useToast();
 
   const load = () => api.getLoanFiles().then(setFiles);
   useEffect(() => { load(); api.getContacts('banker').then(setBankers); }, []);
@@ -23,9 +25,10 @@ export default function LoanFiles() {
   };
 
   const submit = async () => {
-    if (!selectedLead) return alert('Please select an existing lead first.');
+    if (!selectedLead) { toast('Please select an existing lead first.', 'error'); return; }
     await api.createLoanFile({ lead_contact_id: selectedLead.id, ...form, banker_contact_id: form.banker_contact_id || null, loan_amount: Number(form.loan_amount) || null });
     setShowForm(false); setSelectedLead(null); setLeadQuery('');
+    toast('Loan file created.', 'success');
     load();
   };
 
@@ -43,7 +46,7 @@ export default function LoanFiles() {
           </thead>
           <tbody>
             {files.map(f => (
-              <tr key={f.id} className="border-t">
+              <tr key={f.id} className="border-t border-gray-50 hover:bg-navy-50/30 transition-colors">
                 <td className="p-3">{f.lead_name}</td>
                 <td>{f.loan_category} {f.loan_subcategory ? `(${f.loan_subcategory})` : ''}</td>
                 <td>{f.loan_amount ? `₹${Number(f.loan_amount).toLocaleString('en-IN')}` : '-'}</td>

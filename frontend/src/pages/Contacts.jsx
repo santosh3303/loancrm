@@ -30,7 +30,7 @@ export default function Contacts() {
           <thead className="bg-navy-50/40 text-left text-navy-700/70"><tr><th className="p-3">Name</th><th>Mobile</th><th></th></tr></thead>
           <tbody>
             {contacts.map(c => (
-              <tr key={c.id} className="border-t">
+              <tr key={c.id} className="border-t border-gray-50 hover:bg-navy-50/30 transition-colors">
                 <td className="p-3">{c.name}</td><td>{c.mobile}</td>
                 <td className="flex gap-3 items-center py-2">
                   <ContactActions mobile={c.mobile} />

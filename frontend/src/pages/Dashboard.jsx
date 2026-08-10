@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
 import { Sparkles, SlidersHorizontal, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { useToast } from '../components/Toast';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { SkeletonCard, SkeletonList } from '../components/Skeleton';
 
 const DEFAULT_WIDGETS = ['stats', 'pipeline', 'today', 'queries'];
 const WIDGET_LABELS = { stats: 'Summary Stats', pipeline: 'Pipeline by Stage', today: "Today's Follow-ups", queries: 'Open Queries' };
@@ -17,19 +20,21 @@ export default function Dashboard() {
   });
   const [customizing, setCustomizing] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [confirmSeed, setConfirmSeed] = useState(false);
+  const toast = useToast();
 
   useEffect(() => { api.getDashboard().then(setData); }, []);
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets)); }, [widgets]);
 
   const loadSampleData = async () => {
-    if (!confirm('This will add sample leads, loan files, and contacts to explore the app. It will NOT delete anything you already have. Continue?')) return;
+    setConfirmSeed(false);
     setSeeding(true);
     try {
       await api.seedDemoData();
       setData(await api.getDashboard());
-      alert('Sample data added! Explore Leads, Loan Files, and Contacts to see it.');
+      toast('Sample data added — check Leads, Loan Files, and Contacts.', 'success');
     } catch (e) {
-      alert('Something went wrong adding sample data: ' + e.message);
+      toast('Something went wrong adding sample data: ' + e.message, 'error');
     }
     setSeeding(false);
   };
@@ -46,14 +51,22 @@ export default function Dashboard() {
     });
   };
 
-  if (!data) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (!data) return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="h-7 bg-gray-100 rounded w-40 mb-6 animate-pulse" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <SkeletonCard /><SkeletonCard /><SkeletonCard />
+      </div>
+      <SkeletonList rows={3} />
+    </div>
+  );
 
   return (
     <div className="p-6 max-w-6xl mx-auto animate-fade-in">
       <div className="flex justify-between items-center mb-1">
         <h1 className="text-2xl font-display font-semibold text-navy-700">Dashboard</h1>
         <div className="flex gap-2">
-          <button onClick={loadSampleData} disabled={seeding} className="btn-secondary flex items-center gap-1.5">
+          <button onClick={() => setConfirmSeed(true)} disabled={seeding} className="btn-secondary flex items-center gap-1.5">
             <Sparkles size={14} /> {seeding ? 'Loading...' : 'Load Sample Data'}
           </button>
           <button onClick={() => setCustomizing(c => !c)} className="btn-secondary flex items-center gap-1.5">
@@ -127,6 +140,15 @@ export default function Dashboard() {
           </Card>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmSeed}
+        title="Load sample data?"
+        message="This adds sample leads, loan files, and contacts so you can explore the app. It will NOT delete anything you already have."
+        confirmLabel="Load Sample Data"
+        onConfirm={loadSampleData}
+        onCancel={() => setConfirmSeed(false)}
+      />
     </div>
   );
 }
