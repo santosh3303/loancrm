@@ -1,181 +1,105 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { Link } from 'react-router-dom';
-import { Sparkles, SlidersHorizontal, TrendingUp, Clock, AlertCircle } from 'lucide-react';
-import { useToast } from '../components/Toast';
-import ConfirmDialog from '../components/ConfirmDialog';
 import { SkeletonCard, SkeletonList } from '../components/Skeleton';
-
-const DEFAULT_WIDGETS = ['stats', 'pipeline', 'today', 'queries'];
-const WIDGET_LABELS = { stats: 'Summary Stats', pipeline: 'Pipeline by Stage', today: "Today's Follow-ups", queries: 'Open Queries' };
-const STORAGE_KEY = 'loan_crm_dashboard_layout';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
-  const [widgets, setWidgets] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : DEFAULT_WIDGETS;
-    } catch { return DEFAULT_WIDGETS; }
-  });
-  const [customizing, setCustomizing] = useState(false);
-  const [seeding, setSeeding] = useState(false);
-  const [confirmSeed, setConfirmSeed] = useState(false);
-  const toast = useToast();
+  const [files, setFiles] = useState([]);
+  const navigate = useNavigate();
 
-  useEffect(() => { api.getDashboard().then(setData); }, []);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets)); }, [widgets]);
-
-  const loadSampleData = async () => {
-    setConfirmSeed(false);
-    setSeeding(true);
-    try {
-      await api.seedDemoData();
-      setData(await api.getDashboard());
-      toast('Sample data added — check Leads, Loan Files, and Contacts.', 'success');
-    } catch (e) {
-      toast('Something went wrong adding sample data: ' + e.message, 'error');
-    }
-    setSeeding(false);
-  };
-
-  const toggleWidget = (w) => setWidgets(cur => cur.includes(w) ? cur.filter(x => x !== w) : [...cur, w]);
-  const move = (w, dir) => {
-    setWidgets(cur => {
-      const i = cur.indexOf(w);
-      const j = i + dir;
-      if (j < 0 || j >= cur.length) return cur;
-      const copy = [...cur];
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-      return copy;
-    });
-  };
+  useEffect(() => {
+    api.getDashboard().then(setData);
+    api.getLoanFiles().then(all => setFiles(all.filter(f => f.current_stage !== 'Disbursed').slice(0, 6)));
+  }, []);
 
   if (!data) return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="h-7 bg-gray-100 rounded w-40 mb-6 animate-pulse" />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <SkeletonCard /><SkeletonCard /><SkeletonCard />
+    <div className="p-4">
+      <div className="h-6 bg-gray-100 rounded w-40 mb-5 animate-pulse" />
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
       </div>
       <SkeletonList rows={3} />
     </div>
   );
 
-  return (
-    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
-      <div className="flex justify-between items-center mb-1">
-        <h1 className="text-2xl font-display font-semibold text-navy-700">Dashboard</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setConfirmSeed(true)} disabled={seeding} className="btn-secondary flex items-center gap-1.5">
-            <Sparkles size={14} /> {seeding ? 'Loading...' : 'Load Sample Data'}
-          </button>
-          <button onClick={() => setCustomizing(c => !c)} className="btn-secondary flex items-center gap-1.5">
-            <SlidersHorizontal size={14} /> {customizing ? 'Done' : 'Customize'}
-          </button>
-        </div>
-      </div>
-      <p className="text-sm text-gray-400 mb-6">Your day, at a glance.</p>
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = data.todayFollowUps.filter(f => f.due_date < today);
+  const dueToday = data.todayFollowUps.filter(f => f.due_date === today);
+  const todayItems = [...overdue, ...dueToday].slice(0, 3);
 
-      {customizing && (
-        <div className="card p-4 text-sm space-y-2 mb-6 animate-fade-in">
-          <p className="text-xs text-gray-400 mb-2">Show/hide widgets and reorder them. Remembered on this device.</p>
-          {DEFAULT_WIDGETS.map(w => (
-            <div key={w} className="flex items-center gap-3">
-              <input type="checkbox" checked={widgets.includes(w)} onChange={() => toggleWidget(w)} className="accent-amber-600" />
-              <span className="flex-1 text-navy-700">{WIDGET_LABELS[w]}</span>
-              {widgets.includes(w) && (
-                <>
-                  <button onClick={() => move(w, -1)} className="text-xs px-2 py-0.5 border rounded-md hover:bg-navy-50">↑</button>
-                  <button onClick={() => move(w, 1)} className="text-xs px-2 py-0.5 border rounded-md hover:bg-navy-50">↓</button>
-                </>
-              )}
+  const JUMP_TILES = [
+    { to: '/daily-operations', label: 'Daily Operations', sub: `${data.overdueFollowUps + data.todayFollowUps.length} tasks, ${data.activeFiles} files`, cls: 'bg-gradient-to-br from-navy-700 to-navy-500' },
+    { to: '/reporting', label: 'Reporting', sub: 'Filter & export', cls: 'bg-gradient-to-br from-amber-600 to-amber-500' },
+    { to: '/master-database', label: 'Master Database', sub: `${data.openLeads} leads`, cls: 'bg-gradient-to-br from-[#3a5a7a] to-navy-500' },
+    { to: '/settings', label: 'Settings', sub: 'Rules & setup', cls: 'bg-gradient-to-br from-gray-600 to-gray-500' },
+  ];
+
+  return (
+    <div className="p-4 pb-6 animate-fade-in">
+      <div className="text-[12.5px] text-gray-400 mb-0.5">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+      <h1 className="font-display text-xl font-bold text-navy-900 mb-4">Good day, Chetan</h1>
+
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        <Stat num={data.openLeads} lbl="LEADS" />
+        <Stat num={data.activeFiles} lbl="FILES" />
+        <Stat num={data.overdueFollowUps} lbl="OVERDUE" warn={data.overdueFollowUps > 0} />
+        <Stat num={data.openQueries.length} lbl="QUERIES" />
+      </div>
+
+      <SectionTitle title="Jump to" />
+      <div className="grid grid-cols-2 gap-2.5 mb-5">
+        {JUMP_TILES.map(t => (
+          <div key={t.to} onClick={() => navigate(t.to)} className={`rounded-2xl p-3.5 text-white cursor-pointer active:scale-[0.97] transition-transform ${t.cls}`}>
+            <div className="font-bold text-[13px]">{t.label}</div>
+            <div className="text-[10.5px] opacity-85 mt-0.5">{t.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <SectionTitle title="Today" action="Full list →" onAction={() => navigate('/daily-operations')} />
+      <div className="card p-1.5">
+        {todayItems.length === 0 && <p className="text-center text-gray-300 text-sm py-4">Nothing pending — you're caught up.</p>}
+        {todayItems.map(t => (
+          <div key={t.id} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors">
+            <div className={`w-[3px] self-stretch rounded-sm ${t.due_date < today ? 'bg-red-500' : 'bg-amber-500'}`} />
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">{t.party_type} · {t.due_date < today ? 'Overdue' : 'Due today'}</div>
             </div>
-          ))}
-        </div>
-      )}
-
-      {widgets.includes('stats') && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Stat icon={TrendingUp} label="Open Leads" value={data.openLeads} />
-          <Stat icon={Clock} label="Active Files" value={data.activeFiles} />
-          <Stat icon={AlertCircle} label="Overdue Follow-ups" value={data.overdueFollowUps} warn={data.overdueFollowUps > 0} />
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {widgets.includes('pipeline') && (
-          <Card title="Pipeline by Stage">
-            {data.pipeline.length === 0 && <Empty text="No files yet" />}
-            {data.pipeline.map(p => (
-              <div key={p.current_stage} className="flex justify-between text-sm py-2 border-b border-gray-50 last:border-0">
-                <span className="text-navy-700">{p.current_stage}</span>
-                <span className="font-semibold text-navy-500">{p.c}</span>
-              </div>
-            ))}
-          </Card>
-        )}
-
-        {widgets.includes('today') && (
-          <Card title="Today's Follow-ups" link="/tasks">
-            {data.todayFollowUps.length === 0 && <Empty text="Nothing due today" />}
-            {data.todayFollowUps.map(f => (
-              <div key={f.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
-                <span className="font-medium text-navy-700">{f.party_type}</span>
-                <span className="text-gray-400"> — {f.method} {f.notes ? `(${f.notes})` : ''}</span>
-              </div>
-            ))}
-          </Card>
-        )}
-
-        {widgets.includes('queries') && (
-          <Card title="Open Queries">
-            {data.openQueries.length === 0 && <Empty text="No open queries" />}
-            {data.openQueries.map(q => (
-              <div key={q.id} className="text-sm py-2 border-b border-gray-50 last:border-0">
-                <span className={`font-medium ${q.priority === 'High' ? 'text-red-600' : 'text-navy-700'}`}>{q.priority}</span>
-                <span className="text-gray-500"> — {q.description}</span>
-                <Link to={`/loan-files/${q.loan_file_id}`} className="text-amber-700 ml-1 hover:underline">view</Link>
-              </div>
-            ))}
-          </Card>
-        )}
+          </div>
+        ))}
       </div>
 
-      <ConfirmDialog
-        open={confirmSeed}
-        title="Load sample data?"
-        message="This adds sample leads, loan files, and contacts so you can explore the app. It will NOT delete anything you already have."
-        confirmLabel="Load Sample Data"
-        onConfirm={loadSampleData}
-        onCancel={() => setConfirmSeed(false)}
-      />
+      <SectionTitle title="Files in motion" action="See all →" onAction={() => navigate('/master-database?tab=files')} />
+      <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
+        {files.length === 0 && <p className="text-gray-300 text-sm py-4">No active files yet</p>}
+        {files.map(f => (
+          <div key={f.id} onClick={() => navigate(`/loan-files/${f.id}`)} className="shrink-0 w-[148px] card p-3.5 cursor-pointer active:scale-[0.97] transition-transform">
+            <div className="text-[13px] font-bold text-navy-900 truncate">{f.lead_name}</div>
+            <div className="text-[10.5px] text-gray-400 mt-0.5 mb-2.5">₹{Number(f.loan_amount || 0).toLocaleString('en-IN')} · {f.bank_name || 'Generic'}</div>
+            <span className="inline-block bg-amber-50 text-amber-700 text-[10px] font-bold px-2.5 py-1 rounded-full">{f.current_stage}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function Stat({ icon: Icon, label, value, warn }) {
+function Stat({ num, lbl, warn }) {
   return (
-    <div className={`card p-5 ${warn ? 'border-red-200' : ''}`}>
-      <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-        <Icon size={15} /> {label}
-      </div>
-      <div className={`text-3xl font-display font-semibold ${warn ? 'text-red-600' : 'text-navy-700'}`}>{value}</div>
+    <div className="card p-2.5 text-center active:scale-95 transition-transform">
+      <div className={`font-display font-bold text-[18px] ${warn ? 'text-red-500' : 'text-navy-900'}`}>{num}</div>
+      <div className="text-[9px] text-gray-400 mt-0.5 font-semibold">{lbl}</div>
     </div>
   );
 }
 
-function Card({ title, children, link }) {
+function SectionTitle({ title, action, onAction }) {
   return (
-    <div className="card p-4">
-      <div className="flex justify-between items-center mb-2">
-        <div className="font-medium text-navy-700 text-sm">{title}</div>
-        {link && <Link to={link} className="text-xs text-amber-700 hover:underline">view all</Link>}
-      </div>
-      {children}
+    <div className="flex justify-between items-center text-[13.5px] font-bold text-navy-900 mt-5 mb-2.5">
+      {title}
+      {action && <span onClick={onAction} className="text-[11px] text-amber-600 font-semibold cursor-pointer">{action}</span>}
     </div>
   );
-}
-
-function Empty({ text }) {
-  return <p className="text-gray-300 text-sm py-4 text-center">{text}</p>;
 }

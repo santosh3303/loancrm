@@ -1,14 +1,15 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
+import BottomNav from './components/BottomNav';
+import SpeedDialFab from './components/SpeedDialFab';
 import { ToastProvider } from './components/Toast';
 import Dashboard from './pages/Dashboard';
-import Tasks from './pages/Tasks';
-import Leads from './pages/Leads';
+import DailyOperations from './pages/DailyOperations';
+import Reporting from './pages/Reporting';
+import MasterDatabase from './pages/MasterDatabase';
+import Settings from './pages/Settings';
 import LeadDetail from './pages/LeadDetail';
-import LoanFiles from './pages/LoanFiles';
 import LoanFileDetail from './pages/LoanFileDetail';
-import Contacts from './pages/Contacts';
-import Reports from './pages/Reports';
 import ChecklistRules from './pages/ChecklistRules';
 import EligibilityRules from './pages/EligibilityRules';
 import AuditLog from './pages/AuditLog';
@@ -17,23 +18,24 @@ export default function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-canvas flex flex-col md:flex-row">
-          <Sidebar />
-          <main className="flex-1 min-w-0 pb-16 md:pb-0">
+        <div className="max-w-[420px] mx-auto min-h-screen bg-canvas relative shadow-[0_0_40px_rgba(0,0,0,0.08)]">
+          <TopBar />
+          <div className="relative">
             <Routes>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/leads" element={<Leads />} />
+              <Route path="/daily-operations" element={<DailyOperations />} />
+              <Route path="/reporting" element={<Reporting />} />
+              <Route path="/master-database" element={<MasterDatabase />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/checklist-rules" element={<ChecklistRules />} />
+              <Route path="/settings/eligibility-rules" element={<EligibilityRules />} />
+              <Route path="/settings/audit-log" element={<AuditLog />} />
               <Route path="/leads/:id" element={<LeadDetail />} />
-              <Route path="/loan-files" element={<LoanFiles />} />
               <Route path="/loan-files/:id" element={<LoanFileDetail />} />
-              <Route path="/contacts" element={<Contacts />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/checklist-rules" element={<ChecklistRules />} />
-              <Route path="/eligibility-rules" element={<EligibilityRules />} />
-              <Route path="/audit-log" element={<AuditLog />} />
             </Routes>
-          </main>
+          </div>
+          <SpeedDialFab />
+          <BottomNav />
         </div>
       </BrowserRouter>
     </ToastProvider>

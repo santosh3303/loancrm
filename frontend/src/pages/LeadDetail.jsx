@@ -36,7 +36,7 @@ export default function LeadDetail() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto animate-fade-in">
-      <Breadcrumb items={[{ label: 'Leads', to: '/leads' }, { label: lead.name }]} />
+      <Breadcrumb items={[{ label: 'Master Database', to: '/master-database?tab=leads' }, { label: lead.name }]} />
       <div className="flex justify-between items-start mb-4">
         <div>
           <h1 className="text-2xl font-display font-semibold text-navy-700">{lead.name}</h1>

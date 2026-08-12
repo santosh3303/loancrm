@@ -454,6 +454,37 @@ app.delete('/api/eligibility-rules/:id', async (req, res) => {
   res.json({ deleted: true });
 });
 
+// ---------- UNIVERSAL SEARCH ----------
+app.get('/api/search', async (req, res) => {
+  const { q, scope } = req.query;
+  if (!q || q.length < 2) return res.json({ leads: [], files: [], contacts: [], tasks: [] });
+  const like = `%${q}%`;
+  const results = { leads: [], files: [], contacts: [], tasks: [] };
+
+  if (!scope || scope === 'all' || scope === 'leads') {
+    results.leads = await db.all(
+      `SELECT * FROM contacts WHERE role='lead' AND (name LIKE ? OR mobile LIKE ?) LIMIT 8`, [like, like]
+    );
+  }
+  if (!scope || scope === 'all' || scope === 'files') {
+    results.files = await db.all(`
+      SELECT lf.*, c.name as lead_name FROM loan_files lf JOIN contacts c ON c.id = lf.lead_contact_id
+      WHERE c.name LIKE ? OR lf.bank_name LIKE ? LIMIT 8
+    `, [like, like]);
+  }
+  if (!scope || scope === 'all' || scope === 'contacts') {
+    results.contacts = await db.all(
+      `SELECT * FROM contacts WHERE role IN ('connector','banker') AND (name LIKE ? OR mobile LIKE ?) LIMIT 8`, [like, like]
+    );
+  }
+  if (!scope || scope === 'all' || scope === 'tasks') {
+    results.tasks = await db.all(
+      `SELECT * FROM follow_ups WHERE notes LIKE ? LIMIT 8`, [like]
+    );
+  }
+  res.json(results);
+});
+
 const PORT = process.env.PORT || 4000;
 
 // ---------- DEMO DATA SEEDING ----------

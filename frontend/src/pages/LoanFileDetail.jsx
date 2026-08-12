@@ -30,7 +30,7 @@ export default function LoanFileDetail() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto animate-fade-in">
-      <Breadcrumb items={[{ label: 'Loan Files', to: '/loan-files' }, { label: file.lead_name }]} />
+      <Breadcrumb items={[{ label: 'Master Database', to: '/master-database?tab=files' }, { label: file.lead_name }]} />
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-display font-semibold text-navy-700">{file.lead_name}</h1>

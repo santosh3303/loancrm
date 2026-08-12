@@ -54,4 +54,6 @@ export const api = {
   deleteEligibilityRule: (id) => req('DELETE', `/eligibility-rules/${id}`),
 
   seedDemoData: () => req('POST', '/seed-demo-data'),
+
+  search: (q, scope) => req('GET', `/search?q=${encodeURIComponent(q)}${scope ? `&scope=${scope}` : ''}`),
 };
