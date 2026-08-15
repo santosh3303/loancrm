@@ -42,3 +42,14 @@ h1, h2, h3, .font-display {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* App shell must be the real scrolling container (not the document body),
+   so the sticky header/footer stay visibly fixed on real mobile browsers
+   (Chrome mobile in particular needs the dvh fallback for its dynamic toolbar). */
+.app-frame {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}

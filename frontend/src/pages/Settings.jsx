@@ -4,6 +4,7 @@ const ITEMS = [
   { to: '/settings/checklist-rules', icon: '📄', title: 'Checklist Rules', sub: 'Documents required per bank' },
   { to: '/settings/eligibility-rules', icon: '📊', title: 'Eligibility Rules', sub: 'CIBIL & income checks' },
   { to: '/settings/audit-log', icon: '🕐', title: 'Change History', sub: 'Full audit trail' },
+  { to: '/settings/dashboard-customization', icon: '🎛️', title: 'Dashboard Customization', sub: 'Stat cards & task filter pills' },
 ];
 
 export default function Settings() {

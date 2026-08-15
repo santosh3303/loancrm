@@ -37,7 +37,7 @@ export const api = {
 
   addCommunicationLog: (data) => req('POST', '/communication-log', data),
 
-  getDashboard: () => req('GET', '/dashboard'),
+  getDashboard: (from, to) => req('GET', `/dashboard${from && to ? `?from=${from}&to=${to}` : ''}`),
   getReport: (params) => req('GET', `/reports/loan-files?${new URLSearchParams(params).toString()}`),
 
   getAuditLog: (params) => req('GET', `/audit-log${params ? `?${new URLSearchParams(params).toString()}` : ''}`),

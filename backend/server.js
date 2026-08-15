@@ -285,13 +285,16 @@ app.get('/api/follow-ups', async (req, res) => {
 app.post('/api/follow-ups', async (req, res) => {
   const f = req.body;
   const info = await db.run(`
-    INSERT INTO follow_ups (loan_file_id, lead_contact_id, party_type, method, due_date, status, notes)
-    VALUES (?,?,?,?,?,?,?)
-  `, [f.loan_file_id || null, f.lead_contact_id || null, f.party_type, f.method, f.due_date, f.status || 'Pending', f.notes || null]);
+    INSERT INTO follow_ups (loan_file_id, lead_contact_id, party_type, method, due_date, status, notes, priority_tag)
+    VALUES (?,?,?,?,?,?,?,?)
+  `, [f.loan_file_id || null, f.lead_contact_id || null, f.party_type, f.method, f.due_date, f.status || 'Pending', f.notes || null, f.priority_tag || null]);
   res.json(await db.get(`SELECT * FROM follow_ups WHERE id = ?`, [info.lastInsertRowid]));
 });
 app.put('/api/follow-ups/:id', async (req, res) => {
-  await db.run(`UPDATE follow_ups SET status = ? WHERE id = ?`, [req.body.status, req.params.id]);
+  const existing = await db.get(`SELECT * FROM follow_ups WHERE id = ?`, [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  const f = { ...existing, ...req.body };
+  await db.run(`UPDATE follow_ups SET status = ?, priority_tag = ? WHERE id = ?`, [f.status, f.priority_tag, req.params.id]);
   res.json(await db.get(`SELECT * FROM follow_ups WHERE id = ?`, [req.params.id]));
 });
 
@@ -333,13 +336,37 @@ app.post('/api/communication-log', async (req, res) => {
 
 // ---------- DASHBOARD ----------
 app.get('/api/dashboard', async (req, res) => {
-  const openLeads = (await db.get(`SELECT COUNT(*) c FROM contacts WHERE role='lead' AND qualification_status IN ('Valid','Eligible')`)).c;
-  const activeFiles = (await db.get(`SELECT COUNT(*) c FROM loan_files WHERE current_stage NOT IN ('Disbursed')`)).c;
+  const { from, to } = req.query;
+  const dateFilter = (from && to) ? ` AND created_at BETWEEN ? AND ? ` : '';
+  const dateArgs = (from && to) ? [from, to] : [];
+
+  const openLeads = (await db.get(`SELECT COUNT(*) c FROM contacts WHERE role='lead' AND qualification_status IN ('Valid','Eligible')${dateFilter}`, dateArgs)).c;
+  const activeFiles = (await db.get(`SELECT COUNT(*) c FROM loan_files WHERE current_stage NOT IN ('Disbursed')${dateFilter}`, dateArgs)).c;
+  // Overdue/open-queries reflect current backlog right now — not meaningfully scoped to a past/future period
   const overdueFollowUps = (await db.get(`SELECT COUNT(*) c FROM follow_ups WHERE status='Pending' AND due_date < date('now')`)).c;
-  const todayFollowUps = await db.all(`SELECT * FROM follow_ups WHERE status='Pending' AND due_date = date('now')`);
+  const todayFollowUps = await db.all(`SELECT * FROM follow_ups WHERE status='Pending' AND due_date <= date('now') ORDER BY due_date`);
   const openQueries = await db.all(`SELECT * FROM queries WHERE status='Open' ORDER BY priority`);
   const pipeline = await db.all(`SELECT current_stage, COUNT(*) c FROM loan_files GROUP BY current_stage`);
-  res.json({ openLeads, activeFiles, overdueFollowUps, todayFollowUps, openQueries, pipeline });
+
+  const bizValueRow = await db.get(`SELECT COALESCE(SUM(loan_amount),0) s FROM loan_files WHERE 1=1${dateFilter}`, dateArgs);
+
+  // NOTE: Logins/Sanctions/Disb. are approximated from each file's CURRENT stage,
+  // not the date it actually reached that stage (we don't track stage-transition
+  // history yet, only current_stage). A file created in an earlier period but that
+  // has since progressed will still count here. Flagging this as a known limitation —
+  // a proper fix means recording stage-change timestamps (audit_log already captures
+  // this per-change; we can build a precise version from that later if needed).
+  const loginStages = ['File Login','PF Clearance','RCU/FCU','Valuation Visit','Employment Verification','Credit PD','Query Resolution','Offer Discussion','Sanction Letter','T&C Discussion','Property Registration','Post-Sanction Docs','Agreement Vetting','Final PF Payment','OCR Clearance','PDC Submission','Agreement Signing','Disbursement Query','Disbursed'];
+  const sanctionStages = ['Sanction Letter','T&C Discussion','Property Registration','Post-Sanction Docs','Agreement Vetting','Final PF Payment','OCR Clearance','PDC Submission','Agreement Signing','Disbursement Query','Disbursed'];
+
+  const loginsRow = await db.get(`SELECT COUNT(*) c FROM loan_files WHERE current_stage IN (${loginStages.map(() => '?').join(',')})${dateFilter}`, [...loginStages, ...dateArgs]);
+  const sanctionsRow = await db.get(`SELECT COUNT(*) c FROM loan_files WHERE current_stage IN (${sanctionStages.map(() => '?').join(',')})${dateFilter}`, [...sanctionStages, ...dateArgs]);
+  const disbRow = await db.get(`SELECT COUNT(*) c FROM loan_files WHERE current_stage = 'Disbursed'${dateFilter}`, dateArgs);
+
+  res.json({
+    openLeads, activeFiles, overdueFollowUps, todayFollowUps, openQueries, pipeline,
+    bizValue: bizValueRow.s, logins: loginsRow.c, sanctions: sanctionsRow.c, disb: disbRow.c
+  });
 });
 
 // ---------- REPORTS ----------

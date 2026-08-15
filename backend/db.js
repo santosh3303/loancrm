@@ -41,6 +41,32 @@ async function ensureColumn(table, column, definition) {
   }
 }
 
+async function migrateFollowUpsBackendAndPriority() {
+  const res = await client.execute(`SELECT sql FROM sqlite_master WHERE type='table' AND name='follow_ups'`);
+  const createSql = res.rows[0] ? res.rows[0][0] : '';
+  if (createSql.includes('Backend')) return; // already migrated
+
+  await client.executeMultiple(`
+    CREATE TABLE follow_ups_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        loan_file_id INTEGER REFERENCES loan_files(id),
+        lead_contact_id INTEGER REFERENCES contacts(id),
+        party_type TEXT NOT NULL CHECK (party_type IN ('Lead','Source','Bank')),
+        method TEXT NOT NULL CHECK (method IN ('Call','WhatsApp','Visit','Backend')),
+        due_date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','Done')),
+        notes TEXT,
+        priority_tag TEXT CHECK (priority_tag IS NULL OR priority_tag IN ('Urgent','Important','Top Priority')),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO follow_ups_new (id, loan_file_id, lead_contact_id, party_type, method, due_date, status, notes, created_at)
+      SELECT id, loan_file_id, lead_contact_id, party_type, method, due_date, status, notes, created_at FROM follow_ups;
+    DROP TABLE follow_ups;
+    ALTER TABLE follow_ups_new RENAME TO follow_ups;
+  `);
+  console.log('Migrated: follow_ups.method now allows Backend, added priority_tag column');
+}
+
 async function init() {
   const check = await client.execute(
     `SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'`
@@ -81,6 +107,7 @@ async function init() {
     await seedEligibilityRules();
     console.log('Migrated: created eligibility_rules table');
   }
+  await migrateFollowUpsBackendAndPriority();
   console.log('Database schema up to date.');
 }
 

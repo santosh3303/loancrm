@@ -1,16 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChevronDown, Calendar, FastForward } from 'lucide-react';
 import { api } from '../api';
 import { SkeletonCard, SkeletonList } from '../components/Skeleton';
+import { periodRange, PERIOD_GROUPS } from '../utils/periods';
+import { getEnabledStats, getEnabledFilters } from './DashboardCustomize';
+
+const ALL_STAT_DEFS = {
+  openLeads: { lbl: 'LEADS', dest: () => '/master-database?tab=leads' },
+  activeFiles: { lbl: 'FILES', dest: () => '/master-database?tab=files' },
+  overdueFollowUps: { lbl: 'OVERDUE', warn: true, dest: () => '/daily-operations' },
+  openQueriesCount: { lbl: 'QUERIES', dest: () => '/daily-operations' },
+  bizValue: { lbl: 'BIZ VALUE', dest: () => '/reporting', money: true },
+  logins: { lbl: 'LOGINS', dest: () => '/reporting' },
+  sanctions: { lbl: 'SANCTIONS', dest: () => '/reporting' },
+  disb: { lbl: 'DISB.', dest: () => '/reporting' },
+};
+
+const ALL_TYPE_LABELS = { Call: 'Calls', Visit: 'Visits', WhatsApp: 'WhatsApp', Backend: 'Backend' };
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [files, setFiles] = useState([]);
+  const [period, setPeriod] = useState('MTD');
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('all');
   const navigate = useNavigate();
+  const periodRef = useRef();
+
+  const load = (code) => {
+    const range = periodRange(code);
+    api.getDashboard(range?.from, range?.to).then(setData);
+  };
+  useEffect(() => { load(period); }, [period]);
+  useEffect(() => {
+    api.getLoanFiles().then(all => setFiles(all.filter(f => f.current_stage !== 'Disbursed').slice(0, 6)));
+  }, []);
 
   useEffect(() => {
-    api.getDashboard().then(setData);
-    api.getLoanFiles().then(all => setFiles(all.filter(f => f.current_stage !== 'Disbursed').slice(0, 6)));
+    const onDocClick = (e) => { if (periodRef.current && !periodRef.current.contains(e.target)) setPeriodOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
 
   if (!data) return (
@@ -24,54 +54,76 @@ export default function Dashboard() {
   );
 
   const today = new Date().toISOString().slice(0, 10);
-  const overdue = data.todayFollowUps.filter(f => f.due_date < today);
-  const dueToday = data.todayFollowUps.filter(f => f.due_date === today);
-  const todayItems = [...overdue, ...dueToday].slice(0, 3);
-
-  const JUMP_TILES = [
-    { to: '/daily-operations', label: 'Daily Operations', sub: `${data.overdueFollowUps + data.todayFollowUps.length} tasks, ${data.activeFiles} files`, cls: 'bg-gradient-to-br from-navy-700 to-navy-500' },
-    { to: '/reporting', label: 'Reporting', sub: 'Filter & export', cls: 'bg-gradient-to-br from-amber-600 to-amber-500' },
-    { to: '/master-database', label: 'Master Database', sub: `${data.openLeads} leads`, cls: 'bg-gradient-to-br from-[#3a5a7a] to-navy-500' },
-    { to: '/settings', label: 'Settings', sub: 'Rules & setup', cls: 'bg-gradient-to-br from-gray-600 to-gray-500' },
-  ];
+  const statValues = { ...data, openQueriesCount: data.openQueries.length };
+  const visibleTasks = typeFilter === 'all' ? data.todayFollowUps : data.todayFollowUps.filter(t => t.method === typeFilter);
+  const enabledStatKeys = getEnabledStats();
+  const enabledFilterKeys = getEnabledFilters();
 
   return (
     <div className="p-4 pb-6 animate-fade-in">
-      <div className="text-[12.5px] text-gray-400 mb-0.5">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-      <h1 className="font-display text-xl font-bold text-navy-900 mb-4">Good day, Chetan</h1>
+      <div className="flex items-center gap-2 mb-4 relative" ref={periodRef}>
+        <div className="text-[12.5px] text-gray-400">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        <button onClick={() => setPeriodOpen(o => !o)} className="flex items-center gap-1 bg-navy-50 rounded-full px-2.5 py-1 text-[11px] font-bold text-navy-700">
+          <Calendar size={11} /> {period} <ChevronDown size={9} className={`transition-transform ${periodOpen ? 'rotate-180' : ''}`} />
+        </button>
 
-      <div className="grid grid-cols-4 gap-2 mb-5">
-        <Stat num={data.openLeads} lbl="LEADS" />
-        <Stat num={data.activeFiles} lbl="FILES" />
-        <Stat num={data.overdueFollowUps} lbl="OVERDUE" warn={data.overdueFollowUps > 0} />
-        <Stat num={data.openQueries.length} lbl="QUERIES" />
+        {periodOpen && (
+          <div className="absolute left-0 top-8 w-[210px] bg-white/95 backdrop-blur-xl rounded-2xl shadow-card p-2 z-40 animate-fade-in">
+            {PERIOD_GROUPS.map(g => (
+              <div key={g.label}>
+                <div className="text-[9.5px] font-bold uppercase text-gray-300 px-2 pt-1.5 pb-0.5">{g.label}</div>
+                {g.options.map(o => (
+                  <div key={o.code} onClick={() => { setPeriod(o.code); setPeriodOpen(false); }}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] font-bold cursor-pointer ${period === o.code ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
+                    {g.label === 'Upcoming' ? <FastForward size={12} /> : <Calendar size={12} />}
+                    {o.code} <span className="font-normal text-gray-400 text-[10.5px]">{o.label}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <SectionTitle title="Jump to" />
-      <div className="grid grid-cols-2 gap-2.5 mb-5">
-        {JUMP_TILES.map(t => (
-          <div key={t.to} onClick={() => navigate(t.to)} className={`rounded-2xl p-3.5 text-white cursor-pointer active:scale-[0.97] transition-transform ${t.cls}`}>
-            <div className="font-bold text-[13px]">{t.label}</div>
-            <div className="text-[10.5px] opacity-85 mt-0.5">{t.sub}</div>
-          </div>
+      <div className="grid grid-cols-4 gap-1.5 mb-1">
+        {enabledStatKeys.map(key => {
+          const s = ALL_STAT_DEFS[key];
+          if (!s) return null;
+          return (
+            <Stat key={key} num={s.money ? `₹${(statValues[key] / 100000).toFixed(1)}L` : statValues[key]}
+              lbl={s.lbl} warn={s.warn && statValues[key] > 0} onClick={() => navigate(s.dest())} />
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-gray-300 mb-1">Tap any card to jump to its full view.</p>
+
+      <SectionTitle title="Today's Tasks" action="Full list →" onAction={() => navigate('/daily-operations')} />
+      <div className="flex gap-2 overflow-x-auto mb-2.5">
+        <button onClick={() => setTypeFilter('all')}
+          className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${typeFilter === 'all' ? 'bg-navy-900 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}>
+          All
+        </button>
+        {enabledFilterKeys.map(key => (
+          <button key={key} onClick={() => setTypeFilter(key)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${typeFilter === key ? 'bg-navy-900 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}>
+            {ALL_TYPE_LABELS[key]}
+          </button>
         ))}
       </div>
-
-      <SectionTitle title="Today" action="Full list →" onAction={() => navigate('/daily-operations')} />
       <div className="card p-1.5">
-        {todayItems.length === 0 && <p className="text-center text-gray-300 text-sm py-4">Nothing pending — you're caught up.</p>}
-        {todayItems.map(t => (
+        {visibleTasks.length === 0 && <p className="text-center text-gray-300 text-sm py-4">Nothing here — you're caught up.</p>}
+        {visibleTasks.slice(0, 4).map(t => (
           <div key={t.id} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors">
             <div className={`w-[3px] self-stretch rounded-sm ${t.due_date < today ? 'bg-red-500' : 'bg-amber-500'}`} />
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{t.party_type} · {t.due_date < today ? 'Overdue' : 'Due today'}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">{t.party_type} · {t.method} · {t.due_date < today ? 'Overdue' : 'Due today'}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <SectionTitle title="Files in motion" action="See all →" onAction={() => navigate('/master-database?tab=files')} />
+      <SectionTitle title="Active Files" action="See all →" onAction={() => navigate('/master-database?tab=files')} />
       <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
         {files.length === 0 && <p className="text-gray-300 text-sm py-4">No active files yet</p>}
         {files.map(f => (
@@ -86,18 +138,18 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ num, lbl, warn }) {
+function Stat({ num, lbl, warn, onClick }) {
   return (
-    <div className="card p-2.5 text-center active:scale-95 transition-transform">
-      <div className={`font-display font-bold text-[18px] ${warn ? 'text-red-500' : 'text-navy-900'}`}>{num}</div>
-      <div className="text-[9px] text-gray-400 mt-0.5 font-semibold">{lbl}</div>
+    <div onClick={onClick} className="card p-2 text-center active:scale-95 transition-transform cursor-pointer">
+      <div className={`font-display font-bold text-[14.5px] truncate ${warn ? 'text-red-500' : 'text-navy-900'}`}>{num}</div>
+      <div className="text-[8px] text-gray-400 mt-0.5 font-semibold">{lbl}</div>
     </div>
   );
 }
 
 function SectionTitle({ title, action, onAction }) {
   return (
-    <div className="flex justify-between items-center text-[13.5px] font-bold text-navy-900 mt-5 mb-2.5">
+    <div className="flex justify-between items-center text-[13.5px] font-bold text-navy-900 mt-4 mb-2.5">
       {title}
       {action && <span onClick={onAction} className="text-[11px] text-amber-600 font-semibold cursor-pointer">{action}</span>}
     </div>

@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
 import { api } from '../api';
 
 const SCOPES = ['all', 'leads', 'files', 'contacts', 'tasks'];
@@ -10,17 +10,30 @@ export default function TopBar() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState('all');
+  const [scopeOpen, setScopeOpen] = useState(false);
   const [results, setResults] = useState(null);
   const debounceRef = useRef();
   const inputRef = useRef();
+  const rootRef = useRef();
   const navigate = useNavigate();
 
   const toggle = () => {
     const next = !open;
     setOpen(next);
+    setScopeOpen(false);
     if (next) setTimeout(() => inputRef.current?.focus(), 180);
     else { setQuery(''); setResults(null); }
   };
+
+  // Tap anywhere outside the search UI closes it (icon click is handled separately above)
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) toggle();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
 
   const runSearch = (val, sc) => {
     clearTimeout(debounceRef.current);
@@ -32,7 +45,7 @@ export default function TopBar() {
   };
 
   const onInput = (val) => { setQuery(val); runSearch(val, scope); };
-  const onScope = (s) => { setScope(s); runSearch(query, s); };
+  const onScope = (s) => { setScope(s); setScopeOpen(false); runSearch(query, s); };
 
   const goTo = (path) => { toggle(); navigate(path); };
 
@@ -44,35 +57,41 @@ export default function TopBar() {
   ].filter(g => g.items.length) : [];
 
   return (
-    <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-navy-900/5 px-4 py-3.5">
+    <div ref={rootRef} className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-navy-900/5 px-4 py-3.5">
       <div className={`flex justify-between items-center transition-opacity ${open ? 'opacity-0 h-0 pointer-events-none' : ''}`}>
-        <span className="font-display font-bold text-[16px] text-navy-900">Loan CRM</span>
+        <span onClick={() => navigate('/')} className="font-display font-bold text-[16px] text-navy-900 cursor-pointer active:opacity-60">My CRM</span>
         <button onClick={toggle} className="w-[34px] h-[34px] rounded-[10px] bg-navy-900/5 flex items-center justify-center text-navy-500 active:scale-90 transition-transform">
           <Search size={16} strokeWidth={2.3} />
         </button>
       </div>
 
-      <div className={`flex items-center gap-2 overflow-hidden transition-all ${open ? 'max-h-14 mt-0' : 'max-h-0'}`}>
-        <div className="flex-1 bg-navy-900/5 rounded-[11px] px-3 py-2.5 flex items-center gap-2">
+      <div className={`flex items-center gap-2 overflow-hidden transition-all ${open ? 'max-h-14 mt-2.5' : 'max-h-0'}`}>
+        <div className="flex-1 h-[38px] box-border bg-navy-900/5 rounded-[11px] px-3 flex items-center gap-2">
           <Search size={14} className="text-navy-300 shrink-0" />
           <input ref={inputRef} value={query} onChange={e => onInput(e.target.value)}
-            placeholder="Search leads, files, contacts, tasks..."
+            placeholder="Search leads, files, contacts..."
             className="border-none bg-transparent outline-none flex-1 text-[13.5px] text-navy-900" />
         </div>
-        <span onClick={toggle} className="text-[12.5px] font-semibold text-amber-600 shrink-0 cursor-pointer">Cancel</span>
+        <button onClick={() => setScopeOpen(o => !o)}
+          className="h-[38px] box-border shrink-0 flex items-center gap-1 bg-navy-50 rounded-xl px-3.5 text-[12.5px] font-bold text-navy-700">
+          {SCOPE_LABELS[scope]} <ChevronDown size={12} className={`transition-transform ${scopeOpen ? 'rotate-180' : ''}`} />
+        </button>
       </div>
+
+      {/* Positioned outside the clipped row above so it isn't invisibly cut off */}
+      {open && scopeOpen && (
+        <div className="absolute right-4 top-[66px] w-[140px] bg-white/95 backdrop-blur-xl rounded-2xl shadow-card p-2 z-40 animate-fade-in">
+          {SCOPES.map(s => (
+            <div key={s} onClick={() => onScope(s)}
+              className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer ${scope === s ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
+              {SCOPE_LABELS[s]}
+            </div>
+          ))}
+        </div>
+      )}
 
       {open && (
         <div className="absolute left-0 right-0 top-full bg-white/85 backdrop-blur-xl border-b border-navy-900/5 px-4 pb-4 pt-3 max-h-[70vh] overflow-y-auto animate-fade-in">
-          <div className="flex gap-1.5 overflow-x-auto mb-2.5">
-            {SCOPES.map(s => (
-              <button key={s} onClick={() => onScope(s)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-[11.5px] font-semibold transition-colors ${scope === s ? 'bg-navy-900 text-white' : 'bg-navy-900/6 text-navy-500'}`}>
-                {SCOPE_LABELS[s]}
-              </button>
-            ))}
-          </div>
-
           {!results && <p className="text-center text-gray-300 text-[12.5px] py-6">Search everything from any page — start typing above.</p>}
           {results && groups.length === 0 && <p className="text-center text-gray-300 text-[12.5px] py-6">No matches for "{query}"</p>}
           {groups.map(g => (

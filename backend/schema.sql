@@ -100,10 +100,13 @@ CREATE TABLE follow_ups (
     loan_file_id INTEGER REFERENCES loan_files(id),
     lead_contact_id INTEGER REFERENCES contacts(id),  -- for follow-ups before a file exists
     party_type TEXT NOT NULL CHECK (party_type IN ('Lead','Source','Bank')),
-    method TEXT NOT NULL CHECK (method IN ('Call','WhatsApp','Visit')),
+    method TEXT NOT NULL CHECK (method IN ('Call','WhatsApp','Visit','Backend')),
+    -- 'Backend' = internal/admin work, may or may not relate to a specific lead/file
     due_date TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','Done')),
     notes TEXT,
+    priority_tag TEXT CHECK (priority_tag IS NULL OR priority_tag IN ('Urgent','Important','Top Priority')),
+    -- optional override tag shown instead of the auto-computed Overdue/Today/Upcoming status
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
