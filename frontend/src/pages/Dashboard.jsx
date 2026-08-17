@@ -5,6 +5,8 @@ import { api } from '../api';
 import { SkeletonCard, SkeletonList } from '../components/Skeleton';
 import { periodRange, PERIOD_GROUPS } from '../utils/periods';
 import { getEnabledStats, getEnabledFilters } from './DashboardCustomize';
+import TaskActionSheet from '../components/TaskActionSheet';
+import { taglineFor, sortByGroup, BAR_COLOR, statusOf } from '../utils/taskDisplay';
 
 const ALL_STAT_DEFS = {
   openLeads: { lbl: 'LEADS', dest: () => '/master-database?tab=leads' },
@@ -22,15 +24,26 @@ const ALL_TYPE_LABELS = { Call: 'Calls', Visit: 'Visits', WhatsApp: 'WhatsApp', 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [files, setFiles] = useState([]);
+  const [leadNames, setLeadNames] = useState({});
+  const [fileNames, setFileNames] = useState({});
   const [period, setPeriod] = useState('MTD');
   const [periodOpen, setPeriodOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
+  const [activeTask, setActiveTask] = useState(null);
   const navigate = useNavigate();
   const periodRef = useRef();
 
   const load = (code) => {
     const range = periodRange(code);
-    api.getDashboard(range?.from, range?.to).then(setData);
+    api.getDashboard(range?.from, range?.to).then(async d => {
+      setData(d);
+      const leadIds = [...new Set(d.todayFollowUps.filter(t => t.lead_contact_id).map(t => t.lead_contact_id))];
+      const fileIds = [...new Set(d.todayFollowUps.filter(t => t.loan_file_id).map(t => t.loan_file_id))];
+      const leads = await Promise.all(leadIds.map(id => api.getContact(id).catch(() => null)));
+      const fls = await Promise.all(fileIds.map(id => api.getLoanFile(id).catch(() => null)));
+      setLeadNames(Object.fromEntries(leads.filter(Boolean).map(l => [l.id, l.name])));
+      setFileNames(Object.fromEntries(fls.filter(Boolean).map(f => [f.id, f.lead_name])));
+    });
   };
   useEffect(() => { load(period); }, [period]);
   useEffect(() => {
@@ -55,9 +68,11 @@ export default function Dashboard() {
 
   const today = new Date().toISOString().slice(0, 10);
   const statValues = { ...data, openQueriesCount: data.openQueries.length };
-  const visibleTasks = typeFilter === 'all' ? data.todayFollowUps : data.todayFollowUps.filter(t => t.method === typeFilter);
+  let visibleTasks = typeFilter === 'all' ? data.todayFollowUps : data.todayFollowUps.filter(t => t.method === typeFilter);
+  visibleTasks = sortByGroup(visibleTasks, today);
   const enabledStatKeys = getEnabledStats();
   const enabledFilterKeys = getEnabledFilters();
+  const nameFor = (t) => t.loan_file_id ? fileNames[t.loan_file_id] : leadNames[t.lead_contact_id];
 
   return (
     <div className="p-4 pb-6 animate-fade-in">
@@ -112,15 +127,18 @@ export default function Dashboard() {
       </div>
       <div className="card p-1.5">
         {visibleTasks.length === 0 && <p className="text-center text-gray-300 text-sm py-4">Nothing here — you're caught up.</p>}
-        {visibleTasks.slice(0, 4).map(t => (
-          <div key={t.id} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors">
-            <div className={`w-[3px] self-stretch rounded-sm ${t.due_date < today ? 'bg-red-500' : 'bg-amber-500'}`} />
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{t.party_type} · {t.method} · {t.due_date < today ? 'Overdue' : 'Due today'}</div>
+        {visibleTasks.slice(0, 4).map(t => {
+          const status = statusOf(t, today);
+          return (
+            <div key={t.id} onClick={() => setActiveTask(t)} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors cursor-pointer">
+              <div className="w-[3px] self-stretch rounded-sm" style={{ background: BAR_COLOR[status] }} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <SectionTitle title="Active Files" action="See all →" onAction={() => navigate('/master-database?tab=files')} />
@@ -134,6 +152,11 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {activeTask && (
+        <TaskActionSheet task={activeTask} displayLine={taglineFor(activeTask, nameFor(activeTask))}
+          onClose={() => setActiveTask(null)} onChanged={() => load(period)} />
+      )}
     </div>
   );
 }

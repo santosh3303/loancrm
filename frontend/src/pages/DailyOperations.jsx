@@ -4,6 +4,8 @@ import { ChevronDown } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { getEnabledFilters } from './DashboardCustomize';
+import TaskActionSheet from '../components/TaskActionSheet';
+import { statusOf, taglineFor, sortByGroup, BAR_COLOR } from '../utils/taskDisplay';
 
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All' },
@@ -16,17 +18,6 @@ const TYPE_FILTERS = [
 ];
 const ALL_TYPE_LABELS = { Call: 'Calls', Visit: 'Visits', WhatsApp: 'WhatsApp', Backend: 'Backend' };
 
-// Color-coded tag: an explicit priority_tag (Urgent/Important/Top Priority) takes
-// precedence; otherwise falls back to the auto-computed time status.
-function tagFor(t, today) {
-  if (t.priority_tag === 'Urgent') return { label: 'Urgent', color: '#8b1e1e' };
-  if (t.priority_tag === 'Important') return { label: 'Important', color: '#a8890f', bar: '#f0d878' };
-  if (t.priority_tag === 'Top Priority') return { label: 'Top Priority', color: '#ea7317' };
-  if (t.due_date < today) return { label: 'Overdue', color: '#e0503f' };
-  if (t.due_date === today) return { label: 'Today', color: '#9aa5b1' };
-  return { label: 'Upcoming', color: '#8fae8b' };
-}
-
 export default function DailyOperations() {
   const [tasks, setTasks] = useState([]);
   const [leadNames, setLeadNames] = useState({});
@@ -36,6 +27,7 @@ export default function DailyOperations() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [showNewTask, setShowNewTask] = useState(false);
+  const [activeTask, setActiveTask] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const statusRef = useRef();
@@ -78,6 +70,10 @@ export default function DailyOperations() {
   else if (statusFilter === 'upcoming') visible = pending.filter(t => t.due_date > today);
   if (typeFilter !== 'all') visible = visible.filter(t => t.method === typeFilter);
 
+  // Always grouped Overdue -> Today -> Upcoming -> Rest, regardless of which
+  // filters narrowed the list down — filtering and ordering are independent.
+  visible = sortByGroup(visible, today);
+
   const nameFor = (t) => t.loan_file_id ? fileNames[t.loan_file_id] : leadNames[t.lead_contact_id];
   const statusCounts = { overdue: overdueCount, today: todayCount, upcoming: upcomingCount };
 
@@ -89,7 +85,7 @@ export default function DailyOperations() {
           {STATUS_OPTIONS.find(s => s.key === statusFilter).label} <ChevronDown size={12} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
         </button>
         {statusOpen && (
-          <div className="absolute right-0 top-[44px] w-[150px] bg-white/95 backdrop-blur-xl rounded-2xl shadow-card p-2 z-40 animate-fade-in">
+          <div className="absolute right-0 top-[44px] w-[150px] bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in">
             {STATUS_OPTIONS.map(s => (
               <div key={s.key} onClick={() => { setStatusFilter(s.key); setStatusOpen(false); }}
                 className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer flex justify-between ${statusFilter === s.key ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
@@ -112,18 +108,15 @@ export default function DailyOperations() {
       <div className="card p-0.5">
         {visible.length === 0 && <p className="text-center text-gray-300 text-sm py-10">Nothing here — you're all caught up.</p>}
         {visible.map(t => {
-          const tag = tagFor(t, today);
+          const status = statusOf(t, today);
           return (
-            <div key={t.id} className="flex items-center gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0">
-              <div className="w-1 self-stretch rounded-sm shrink-0" style={{ background: tag.bar || tag.color, minHeight: '32px' }} />
-              <button onClick={() => toggleDone(t)} className="w-5 h-5 rounded-full border-2 border-navy-100 shrink-0 active:scale-90 transition-transform" />
+            <div key={t.id} onClick={() => setActiveTask(t)} className="flex items-center gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer active:bg-navy-50 transition-colors">
+              <div className="w-1 self-stretch rounded-sm shrink-0" style={{ background: BAR_COLOR[status], minHeight: '32px' }} />
+              <button onClick={(e) => { e.stopPropagation(); toggleDone(t); }} className="w-5 h-5 rounded-full border-2 border-navy-100 shrink-0 active:scale-90 transition-transform" />
               <div className="flex-1 min-w-0">
                 <div className="text-[13.5px] font-medium text-navy-900">{t.notes || 'Follow up'}</div>
-                <div className="text-[11.5px] text-gray-400 mt-0.5">
-                  {nameFor(t) || t.party_type} · {t.method} · Due {t.due_date}
-                </div>
+                <div className="text-[11.5px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>
               </div>
-              <span className="text-[10.5px] font-bold shrink-0" style={{ color: tag.color }}>{tag.label}</span>
             </div>
           );
         })}
@@ -146,6 +139,10 @@ export default function DailyOperations() {
       </div>
 
       {showNewTask && <NewTaskModal onClose={() => setShowNewTask(false)} onSaved={() => { setShowNewTask(false); toast('Task added.', 'success'); load(); }} />}
+      {activeTask && (
+        <TaskActionSheet task={activeTask} displayLine={taglineFor(activeTask, nameFor(activeTask))}
+          onClose={() => setActiveTask(null)} onChanged={load} />
+      )}
     </div>
   );
 }
@@ -215,7 +212,7 @@ function NewTaskModal({ onClose, onSaved }) {
           <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="input" />
         </div>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 mb-1">Priority Tag (optional — overrides the auto Overdue/Today/Upcoming tag)</label>
+          <label className="block text-xs text-gray-500 mb-1">Priority Tag (optional — for future use, doesn't affect color/grouping yet)</label>
           <select value={form.priority_tag} onChange={e => setForm(f => ({ ...f, priority_tag: e.target.value }))} className="input">
             <option value="">None</option>
             <option value="Urgent">Urgent</option>

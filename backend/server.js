@@ -294,7 +294,10 @@ app.put('/api/follow-ups/:id', async (req, res) => {
   const existing = await db.get(`SELECT * FROM follow_ups WHERE id = ?`, [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const f = { ...existing, ...req.body };
-  await db.run(`UPDATE follow_ups SET status = ?, priority_tag = ? WHERE id = ?`, [f.status, f.priority_tag, req.params.id]);
+  await db.run(`
+    UPDATE follow_ups SET status = ?, priority_tag = ?, due_date = ?, notes = ?, method = ?, party_type = ?
+    WHERE id = ?
+  `, [f.status, f.priority_tag, f.due_date, f.notes, f.method, f.party_type, req.params.id]);
   res.json(await db.get(`SELECT * FROM follow_ups WHERE id = ?`, [req.params.id]));
 });
 

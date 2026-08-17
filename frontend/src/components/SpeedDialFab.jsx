@@ -39,7 +39,7 @@ export default function SpeedDialFab() {
     <>
       {open && <div className="fixed inset-0 bg-navy-900/15 backdrop-blur-[2px] z-[33]" onClick={() => setOpen(false)} />}
 
-      <div className="fixed right-[18px] bottom-[152px] max-w-[420px] mx-auto flex flex-col items-end gap-2.5 z-[34]" style={{ right: 'max(18px, calc(50% - 210px + 18px))' }}>
+      <div className={`fixed right-[18px] bottom-[152px] max-w-[420px] mx-auto flex flex-col items-end gap-2.5 z-[34] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`} style={{ right: 'max(18px, calc(50% - 210px + 18px))' }}>
         {displayOrder.map((key, i) => {
           const Icon = ICONS[key];
           return (

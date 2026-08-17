@@ -57,7 +57,10 @@ export default function TopBar() {
   ].filter(g => g.items.length) : [];
 
   return (
-    <div ref={rootRef} className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-navy-900/5 px-4 py-3.5">
+    // Non-scrolling flex child now (outside the scroll region) — plain solid
+    // background, no sticky/backdrop-blur needed since it never overlaps
+    // scrolling content anymore.
+    <div ref={rootRef} className="relative shrink-0 z-30 bg-white border-b border-navy-900/5 px-4 py-3.5">
       <div className={`flex justify-between items-center transition-opacity ${open ? 'opacity-0 h-0 pointer-events-none' : ''}`}>
         <span onClick={() => navigate('/')} className="font-display font-bold text-[16px] text-navy-900 cursor-pointer active:opacity-60">My CRM</span>
         <button onClick={toggle} className="w-[34px] h-[34px] rounded-[10px] bg-navy-900/5 flex items-center justify-center text-navy-500 active:scale-90 transition-transform">
@@ -78,9 +81,11 @@ export default function TopBar() {
         </button>
       </div>
 
-      {/* Positioned outside the clipped row above so it isn't invisibly cut off */}
+      {/* Fixed pixel offsets (not percentage-based) so positioning never
+          depends on the header's animating height — this is what actually
+          caused the header-covering bug. */}
       {open && scopeOpen && (
-        <div className="absolute right-4 top-[66px] w-[140px] bg-white/95 backdrop-blur-xl rounded-2xl shadow-card p-2 z-40 animate-fade-in">
+        <div className="absolute right-4 top-[76px] w-[140px] bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in">
           {SCOPES.map(s => (
             <div key={s} onClick={() => onScope(s)}
               className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer ${scope === s ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
@@ -91,7 +96,7 @@ export default function TopBar() {
       )}
 
       {open && (
-        <div className="absolute left-0 right-0 top-full bg-white/85 backdrop-blur-xl border-b border-navy-900/5 px-4 pb-4 pt-3 max-h-[70vh] overflow-y-auto animate-fade-in">
+        <div className="absolute left-0 right-0 top-[76px] bg-[#f7f8fb] border-b border-navy-900/5 shadow-lg px-4 pb-4 pt-3 max-h-[70vh] overflow-y-auto animate-fade-in z-30">
           {!results && <p className="text-center text-gray-300 text-[12.5px] py-6">Search everything from any page — start typing above.</p>}
           {results && groups.length === 0 && <p className="text-center text-gray-300 text-[12.5px] py-6">No matches for "{query}"</p>}
           {groups.map(g => (

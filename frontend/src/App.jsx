@@ -21,7 +21,7 @@ export default function App() {
       <BrowserRouter>
         <div className="max-w-[420px] mx-auto app-frame bg-canvas relative shadow-[0_0_40px_rgba(0,0,0,0.08)]">
           <TopBar />
-          <div className="relative">
+          <div className="app-scroll-region">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/daily-operations" element={<DailyOperations />} />
