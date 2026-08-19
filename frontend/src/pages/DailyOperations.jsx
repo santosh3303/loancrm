@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { getEnabledFilters } from './DashboardCustomize';
@@ -12,6 +12,7 @@ const STATUS_OPTIONS = [
   { key: 'overdue', label: 'Overdue' },
   { key: 'today', label: 'Today' },
   { key: 'upcoming', label: 'Upcoming' },
+  { key: 'done', label: 'Done' },
 ];
 const TYPE_FILTERS = [
   { key: 'all', label: 'All' },
@@ -28,9 +29,16 @@ export default function DailyOperations() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [showNewTask, setShowNewTask] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
+  const [anchorRect, setAnchorRect] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const statusRef = useRef();
+
+  const openTaskMenu = (e, t) => {
+    setAnchorRect(e.currentTarget.getBoundingClientRect());
+    setActiveTask(t);
+  };
+  const closeTaskMenu = () => { setActiveTask(null); setAnchorRect(null); };
 
   const load = async () => {
     const all = await api.getFollowUps();
@@ -63,19 +71,25 @@ export default function DailyOperations() {
   const overdueCount = pending.filter(t => t.due_date < today).length;
   const todayCount = pending.filter(t => t.due_date === today).length;
   const upcomingCount = pending.filter(t => t.due_date > today).length;
+  const doneCount = tasks.filter(t => t.status === 'Done').length;
 
-  let visible = pending;
+  // 'All' shows everything, including completed tasks (grouped to the
+  // bottom, see sortByGroup) — completed tasks used to vanish entirely,
+  // which is the bug this fixes. The other filters stay scoped to their
+  // specific bucket as before.
+  let visible = tasks;
   if (statusFilter === 'overdue') visible = pending.filter(t => t.due_date < today);
   else if (statusFilter === 'today') visible = pending.filter(t => t.due_date === today);
   else if (statusFilter === 'upcoming') visible = pending.filter(t => t.due_date > today);
+  else if (statusFilter === 'done') visible = tasks.filter(t => t.status === 'Done');
   if (typeFilter !== 'all') visible = visible.filter(t => t.method === typeFilter);
 
-  // Always grouped Overdue -> Today -> Upcoming -> Rest, regardless of which
-  // filters narrowed the list down — filtering and ordering are independent.
+  // Always grouped Overdue -> Today -> Upcoming -> Rest -> Done, regardless
+  // of which filters narrowed the list down — filtering and ordering are independent.
   visible = sortByGroup(visible, today);
 
   const nameFor = (t) => t.loan_file_id ? fileNames[t.loan_file_id] : leadNames[t.lead_contact_id];
-  const statusCounts = { overdue: overdueCount, today: todayCount, upcoming: upcomingCount };
+  const statusCounts = { overdue: overdueCount, today: todayCount, upcoming: upcomingCount, done: doneCount };
 
   return (
     <div className="p-4 pb-6 animate-fade-in">
@@ -96,7 +110,7 @@ export default function DailyOperations() {
         )}
       </div>
 
-      <div className="flex gap-2 overflow-x-auto mb-4">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4">
         {TYPE_FILTERS.map(t => (
           <FilterChip key={t.key} active={typeFilter === t.key} onClick={() => setTypeFilter(t.key)}>{t.label}</FilterChip>
         ))}
@@ -109,12 +123,16 @@ export default function DailyOperations() {
         {visible.length === 0 && <p className="text-center text-gray-300 text-sm py-10">Nothing here — you're all caught up.</p>}
         {visible.map(t => {
           const status = statusOf(t, today);
+          const done = t.status === 'Done';
           return (
-            <div key={t.id} onClick={() => setActiveTask(t)} className="flex items-center gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer active:bg-navy-50 transition-colors">
+            <div key={t.id} onClick={(e) => openTaskMenu(e, t)} className="flex items-center gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer active:bg-navy-50 transition-colors">
               <div className="w-1 self-stretch rounded-sm shrink-0" style={{ background: BAR_COLOR[status], minHeight: '32px' }} />
-              <button onClick={(e) => { e.stopPropagation(); toggleDone(t); }} className="w-5 h-5 rounded-full border-2 border-navy-100 shrink-0 active:scale-90 transition-transform" />
+              <button onClick={(e) => { e.stopPropagation(); toggleDone(t); }}
+                className={`w-5 h-5 rounded-full border-2 shrink-0 active:scale-90 transition-transform flex items-center justify-center ${done ? 'bg-amber-500 border-amber-500' : 'border-navy-100'}`}>
+                {done && <Check size={12} className="text-white" strokeWidth={3} />}
+              </button>
               <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-medium text-navy-900">{t.notes || 'Follow up'}</div>
+                <div className={`text-[13.5px] font-medium ${done ? 'text-gray-400 line-through' : 'text-navy-900'}`}>{t.notes || 'Follow up'}</div>
                 <div className="text-[11.5px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>
               </div>
             </div>
@@ -125,7 +143,7 @@ export default function DailyOperations() {
       <div className="flex justify-between items-center mt-6 mb-2.5">
         <span className="text-[13.5px] font-bold text-navy-900">Active Loan Files</span>
       </div>
-      <div className="card">
+      <div className="card px-3">
         {files.length === 0 && <p className="text-center text-gray-300 text-sm py-4">No active files</p>}
         {files.map(f => (
           <Link key={f.id} to={`/loan-files/${f.id}`} className="flex justify-between items-center py-3 border-b border-gray-50 last:border-0">
@@ -141,7 +159,7 @@ export default function DailyOperations() {
       {showNewTask && <NewTaskModal onClose={() => setShowNewTask(false)} onSaved={() => { setShowNewTask(false); toast('Task added.', 'success'); load(); }} />}
       {activeTask && (
         <TaskActionSheet task={activeTask} displayLine={taglineFor(activeTask, nameFor(activeTask))}
-          onClose={() => setActiveTask(null)} onChanged={load} />
+          anchorRect={anchorRect} onClose={closeTaskMenu} onChanged={load} />
       )}
     </div>
   );

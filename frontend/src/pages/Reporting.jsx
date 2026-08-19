@@ -38,7 +38,7 @@ export default function Reporting() {
     <div className="p-4 pb-6 animate-fade-in">
       <h1 className="font-display text-xl font-bold text-navy-900 mb-4">Reporting</h1>
 
-      <div className="flex gap-2 overflow-x-auto mb-3">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-3">
         {FILTER_TABS.map(f => (
           <button key={f} onClick={() => setOpenFilter(openFilter === f ? null : f)}
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold capitalize transition-colors ${openFilter === f ? 'bg-navy-900 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}>

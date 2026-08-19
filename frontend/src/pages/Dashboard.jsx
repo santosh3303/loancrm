@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [activeTask, setActiveTask] = useState(null);
+  const [anchorRect, setAnchorRect] = useState(null);
   const navigate = useNavigate();
   const periodRef = useRef();
 
@@ -113,7 +114,7 @@ export default function Dashboard() {
       <p className="text-[10px] text-gray-300 mb-1">Tap any card to jump to its full view.</p>
 
       <SectionTitle title="Today's Tasks" action="Full list →" onAction={() => navigate('/daily-operations')} />
-      <div className="flex gap-2 overflow-x-auto mb-2.5">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-2.5">
         <button onClick={() => setTypeFilter('all')}
           className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${typeFilter === 'all' ? 'bg-navy-900 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}>
           All
@@ -130,7 +131,7 @@ export default function Dashboard() {
         {visibleTasks.slice(0, 4).map(t => {
           const status = statusOf(t, today);
           return (
-            <div key={t.id} onClick={() => setActiveTask(t)} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors cursor-pointer">
+            <div key={t.id} onClick={(e) => { setAnchorRect(e.currentTarget.getBoundingClientRect()); setActiveTask(t); }} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors cursor-pointer">
               <div className="w-[3px] self-stretch rounded-sm" style={{ background: BAR_COLOR[status] }} />
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
@@ -142,7 +143,7 @@ export default function Dashboard() {
       </div>
 
       <SectionTitle title="Active Files" action="See all →" onAction={() => navigate('/master-database?tab=files')} />
-      <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
         {files.length === 0 && <p className="text-gray-300 text-sm py-4">No active files yet</p>}
         {files.map(f => (
           <div key={f.id} onClick={() => navigate(`/loan-files/${f.id}`)} className="shrink-0 w-[148px] card p-3.5 cursor-pointer active:scale-[0.97] transition-transform">
@@ -155,7 +156,7 @@ export default function Dashboard() {
 
       {activeTask && (
         <TaskActionSheet task={activeTask} displayLine={taglineFor(activeTask, nameFor(activeTask))}
-          onClose={() => setActiveTask(null)} onChanged={() => load(period)} />
+          anchorRect={anchorRect} onClose={() => { setActiveTask(null); setAnchorRect(null); }} onChanged={() => load(period)} />
       )}
     </div>
   );

@@ -13,7 +13,7 @@ function Path({ stages, offset, currentIndex, onSelect, sectionLabel }) {
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wide text-navy-700/50 mb-3">{sectionLabel}</div>
-      <div className="flex items-start overflow-x-auto pb-2 -mx-1 px-1">
+      <div className="flex items-start overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
         {stages.map((s, localIdx) => {
           const i = localIdx + offset;
           const done = i < currentIndex;

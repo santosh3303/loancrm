@@ -1,11 +1,12 @@
 // Shared between Dashboard and Daily Operations so both pages render task
 // cards identically — same grouping, same colors, same tagline format.
 
-export const GROUP_ORDER = ['overdue', 'today', 'upcoming', 'rest'];
-export const BAR_COLOR = { overdue: '#e0503f', today: '#9aa5b1', upcoming: 'transparent', rest: 'transparent' };
-const STATUS_WORD = { overdue: 'Overdue', today: 'Today', upcoming: 'Upcoming', rest: '' };
+export const GROUP_ORDER = ['overdue', 'today', 'upcoming', 'rest', 'done'];
+export const BAR_COLOR = { overdue: '#e0503f', today: '#9aa5b1', upcoming: 'transparent', rest: 'transparent', done: 'transparent' };
+const STATUS_WORD = { overdue: 'Overdue', today: 'Today', upcoming: 'Upcoming', rest: '', done: 'Done' };
 
 export function statusOf(t, today) {
+  if (t.status === 'Done') return 'done';
   if (t.due_date < today) return 'overdue';
   if (t.due_date === today) return 'today';
   if (t.due_date > today) return 'upcoming';

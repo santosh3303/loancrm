@@ -31,6 +31,9 @@ h1, h2, h3, .font-display {
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
   }
+  .stage-pill {
+    @apply bg-navy-50 text-navy-500 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap;
+  }
 }
 
 @keyframes fadeIn {
@@ -38,6 +41,16 @@ h1, h2, h3, .font-display {
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in { animation: fadeIn 0.25s ease-out; }
+
+/* Hides the visible scrollbar on horizontally-scrolling rows (filter pills,
+   chip rows, tab strips) while keeping the actual scroll/swipe behavior. */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

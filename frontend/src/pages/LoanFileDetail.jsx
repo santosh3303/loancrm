@@ -42,7 +42,7 @@ export default function LoanFileDetail() {
       <StageTracker currentStage={file.current_stage} onChange={changeStage} />
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 text-sm overflow-x-auto">
+      <div className="flex gap-1 border-b border-gray-200 mb-6 text-sm overflow-x-auto scrollbar-hide">
         {['overview', 'applicants', 'followups', 'queries', 'communication'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`pb-2.5 px-3 capitalize whitespace-nowrap transition-colors ${tab === t ? 'border-b-2 border-amber-500 text-navy-700 font-semibold' : 'text-gray-400 hover:text-navy-500'}`}>
