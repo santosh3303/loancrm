@@ -5,7 +5,7 @@ import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { getEnabledFilters } from './DashboardCustomize';
 import TaskActionSheet from '../components/TaskActionSheet';
-import { statusOf, taglineFor, sortByGroup, BAR_COLOR } from '../utils/taskDisplay';
+import { statusOf, taglineFor, sortByGroup, barColorFor } from '../utils/taskDisplay';
 
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All' },
@@ -126,7 +126,7 @@ export default function DailyOperations() {
           const done = t.status === 'Done';
           return (
             <div key={t.id} onClick={(e) => openTaskMenu(e, t)} className="flex items-center gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer active:bg-navy-50 transition-colors">
-              <div className="w-1 self-stretch rounded-sm shrink-0" style={{ background: BAR_COLOR[status], minHeight: '32px' }} />
+              <div className="w-1 self-stretch rounded-sm shrink-0" style={{ background: barColorFor(t, today), minHeight: '32px' }} />
               <button onClick={(e) => { e.stopPropagation(); toggleDone(t); }}
                 className={`w-5 h-5 rounded-full border-2 shrink-0 active:scale-90 transition-transform flex items-center justify-center ${done ? 'bg-amber-500 border-amber-500' : 'border-navy-100'}`}>
                 {done && <Check size={12} className="text-white" strokeWidth={3} />}

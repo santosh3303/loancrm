@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { formatDateTimeDisplay } from '../utils/taskDisplay';
 
 export default function AuditLog() {
   const [logs, setLogs] = useState([]);
@@ -26,7 +27,7 @@ export default function AuditLog() {
           <tbody>
             {logs.map(l => (
               <tr key={l.id} className="border-t">
-                <td className="p-3 text-xs text-gray-500">{l.changed_at}</td>
+                <td className="p-3 text-xs text-gray-500">{formatDateTimeDisplay(l.changed_at)}</td>
                 <td>{l.table_name} #{l.record_id}</td>
                 <td>{l.field_changed}</td>
                 <td className="text-gray-500">{l.old_value}</td>

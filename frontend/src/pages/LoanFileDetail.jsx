@@ -5,6 +5,7 @@ import ContactActions from '../components/ContactActions';
 import StageTracker, { STAGES } from '../components/StageTracker';
 import Breadcrumb from '../components/Breadcrumb';
 import { useToast } from '../components/Toast';
+import { formatDateDisplay } from '../utils/taskDisplay';
 
 export default function LoanFileDetail() {
   const { id } = useParams();
@@ -215,7 +216,7 @@ function FollowUpsTab({ fileId, followUps, onChange }) {
         <tbody>
           {followUps.map(f => (
             <tr key={f.id} className="border-t">
-              <td className="py-1">{f.party_type}</td><td>{f.method}</td><td>{f.due_date}</td>
+              <td className="py-1">{f.party_type}</td><td>{f.method}</td><td>{formatDateDisplay(f.due_date)}</td>
               <td><span className={f.status === 'Pending' ? 'text-orange-600' : 'text-green-600'}>{f.status}</span></td>
               <td>{f.notes}</td>
               <td>{f.status === 'Pending' && <button onClick={() => markDone(f.id)} className="text-xs text-amber-700 hover:underline">Mark done</button>}</td>
@@ -275,7 +276,7 @@ function CommunicationTab({ fileId, log, onChange }) {
       <div className="space-y-2 mb-4 text-sm">
         {log.map(c => (
           <div key={c.id} className="border-b pb-2">
-            <span className="text-gray-500">{c.log_date} | {c.party_type} | {c.mode}</span>
+            <span className="text-gray-500">{formatDateDisplay(c.log_date)} | {c.party_type} | {c.mode}</span>
             <p>{c.content}</p>
           </div>
         ))}

@@ -6,7 +6,7 @@ import { SkeletonCard, SkeletonList } from '../components/Skeleton';
 import { periodRange, PERIOD_GROUPS } from '../utils/periods';
 import { getEnabledStats, getEnabledFilters } from './DashboardCustomize';
 import TaskActionSheet from '../components/TaskActionSheet';
-import { taglineFor, sortByGroup, BAR_COLOR, statusOf } from '../utils/taskDisplay';
+import { taglineFor, sortByGroup, barColorFor, statusOf } from '../utils/taskDisplay';
 
 const ALL_STAT_DEFS = {
   openLeads: { lbl: 'LEADS', dest: () => '/master-database?tab=leads' },
@@ -132,7 +132,7 @@ export default function Dashboard() {
           const status = statusOf(t, today);
           return (
             <div key={t.id} onClick={(e) => { setAnchorRect(e.currentTarget.getBoundingClientRect()); setActiveTask(t); }} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors cursor-pointer">
-              <div className="w-[3px] self-stretch rounded-sm" style={{ background: BAR_COLOR[status] }} />
+              <div className="w-[3px] self-stretch rounded-sm" style={{ background: barColorFor(t, today) }} />
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
                 <div className="text-[11px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>

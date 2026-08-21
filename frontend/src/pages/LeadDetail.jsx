@@ -4,6 +4,7 @@ import { api } from '../api';
 import ContactActions from '../components/ContactActions';
 import Breadcrumb from '../components/Breadcrumb';
 import { useToast } from '../components/Toast';
+import { formatDateDisplay } from '../utils/taskDisplay';
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -104,7 +105,7 @@ export default function LeadDetail() {
         {followUps.length === 0 && <p className="text-gray-400">None yet</p>}
         {followUps.map(f => (
           <div key={f.id} className="py-1 border-b flex justify-between">
-            <span>{f.party_type} — {f.method} — {f.due_date} — {f.notes}</span>
+            <span>{f.party_type} — {f.method} — {formatDateDisplay(f.due_date)} — {f.notes}</span>
             <span className={f.status === 'Pending' ? 'text-orange-600' : 'text-green-600'}>{f.status}</span>
           </div>
         ))}
