@@ -1,6 +1,5 @@
 -- ============================================================
 -- LOAN CONSULTING CRM — DATABASE SCHEMA (SQLite)
--- Phase 1: for review before building API/UI on top of it
 -- ============================================================
 
 -- Unified Contacts table: Leads, Connectors/Sources, and Bankers
@@ -106,7 +105,8 @@ CREATE TABLE follow_ups (
     status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','Done')),
     notes TEXT,
     priority_tag TEXT CHECK (priority_tag IS NULL OR priority_tag IN ('Urgent','Important','Top Priority')),
-    -- optional override tag shown instead of the auto-computed Overdue/Today/Upcoming status
+    -- Manual flag, shown as its own colored label on task cards — independent of
+    -- (and no longer overrides) the automatic Overdue/Today/Upcoming color strip.
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

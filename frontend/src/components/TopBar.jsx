@@ -25,7 +25,6 @@ export default function TopBar() {
     else { setQuery(''); setResults(null); }
   };
 
-  // Tap anywhere outside the search UI closes it (icon click is handled separately above)
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e) => {
@@ -46,7 +45,6 @@ export default function TopBar() {
 
   const onInput = (val) => { setQuery(val); runSearch(val, scope); };
   const onScope = (s) => { setScope(s); setScopeOpen(false); runSearch(query, s); };
-
   const goTo = (path) => { toggle(); navigate(path); };
 
   const groups = results ? [
@@ -56,11 +54,19 @@ export default function TopBar() {
     { key: 'tasks', label: 'Tasks', items: results.tasks.map(t => ({ title: t.notes || 'Follow up', sub: `${t.party_type} · Due ${t.due_date}`, path: `/daily-operations` })) },
   ].filter(g => g.items.length) : [];
 
+  // IMPORTANT: all pixel-precise positioning below uses inline `style`, not
+  // Tailwind's arbitrary-value classes (e.g. top-[64px]). Those classes were
+  // found not to compile at all in this project's build (verified with an
+  // isolated Tailwind CLI test outside the app) — that silent failure was
+  // the actual root cause of this bug and others like it. Inline style
+  // bypasses Tailwind's compiler entirely, so it can't have this problem.
+  //
+  // NOTE: the scope dropdown below is rendered as a sibling INSIDE this same
+  // rootRef-wrapped div (not hoisted elsewhere), so the click-outside check
+  // above (rootRef.current.contains(e.target)) already treats clicks inside
+  // the scope dropdown as "inside" the search UI — selecting a scope option
+  // does not close the search banner.
   return (
-    // Non-scrolling flex child (outside the scroll region). The results
-    // panel below is now rendered as a NORMAL block-flow sibling — not
-    // position:absolute — so it is structurally impossible for it to
-    // overlap the row above it; it can only ever appear directly after it.
     <div ref={rootRef} className="relative shrink-0 z-30 bg-white border-b border-navy-900/5 px-4 py-3.5">
       <div className={`flex justify-between items-center transition-opacity ${open ? 'opacity-0 h-0 pointer-events-none' : ''}`}>
         <span onClick={() => navigate('/')} className="font-display font-bold text-[16px] text-navy-900 cursor-pointer active:opacity-60">My CRM</span>
@@ -69,35 +75,38 @@ export default function TopBar() {
         </button>
       </div>
 
-      <div className={`flex items-center gap-2 overflow-hidden transition-all ${open ? 'max-h-14 mt-2.5' : 'max-h-0'}`}>
-        <div className="flex-1 h-[38px] box-border bg-navy-900/5 rounded-[11px] px-3 flex items-center gap-2">
+      <div className={`flex items-center gap-2 overflow-hidden transition-all ${open ? 'mt-2.5' : ''}`} style={{ maxHeight: open ? 56 : 0 }}>
+        <div className="flex-1 box-border bg-navy-900/5 rounded-[11px] px-3 flex items-center gap-2" style={{ height: 38 }}>
           <Search size={14} className="text-navy-300 shrink-0" />
           <input ref={inputRef} value={query} onChange={e => onInput(e.target.value)}
             placeholder="Search leads, files, contacts..."
             className="border-none bg-transparent outline-none flex-1 text-[13.5px] text-navy-900" />
         </div>
-        <div className="relative shrink-0">
-          <button onClick={() => setScopeOpen(o => !o)}
-            className="h-[38px] box-border flex items-center gap-1 bg-navy-50 rounded-xl px-3.5 text-[12.5px] font-bold text-navy-700">
-            {SCOPE_LABELS[scope]} <ChevronDown size={12} className={`transition-transform ${scopeOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {open && scopeOpen && (
-            <div className="absolute right-0 top-[44px] w-[140px] bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in">
-              {SCOPES.map(s => (
-                <div key={s} onClick={() => onScope(s)}
-                  className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer ${scope === s ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
-                  {SCOPE_LABELS[s]}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <button onClick={() => setScopeOpen(o => !o)}
+          className="box-border shrink-0 flex items-center gap-1 bg-navy-50 rounded-xl px-3.5 text-[12.5px] font-bold text-navy-700" style={{ height: 38 }}>
+          {SCOPE_LABELS[scope]} <ChevronDown size={12} className={`transition-transform ${scopeOpen ? 'rotate-180' : ''}`} />
+        </button>
       </div>
 
-      {/* Normal block flow — always renders directly below the row above it,
-          never floating over the header, regardless of any measurement. */}
+      {/* Sibling of the row above (not nested inside it), so its overflow-hidden
+          can never clip this. Position via inline style — guaranteed to apply. */}
+      {open && scopeOpen && (
+        <div className="absolute bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in"
+          style={{ right: 16, top: 64, width: 140 }}>
+          {SCOPES.map(s => (
+            <div key={s} onClick={() => onScope(s)}
+              className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer ${scope === s ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
+              {SCOPE_LABELS[s]}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Also a sibling — position:absolute + top:100% (percentage, not
+          arbitrary-bracket, so it's a real compiled Tailwind class: top-full). */}
       {open && (
-        <div className="bg-[#f7f8fb] -mx-4 mt-3 border-t border-navy-900/5 px-4 pb-4 pt-3 max-h-[60vh] overflow-y-auto animate-fade-in">
+        <div className="absolute left-0 right-0 top-full bg-[#f7f8fb] border-b border-navy-900/5 shadow-lg px-4 pb-4 pt-3 overflow-y-auto animate-fade-in z-30"
+          style={{ maxHeight: '60vh' }}>
           {!results && <p className="text-center text-gray-300 text-[12.5px] py-6">Search everything from any page — start typing above.</p>}
           {results && groups.length === 0 && <p className="text-center text-gray-300 text-[12.5px] py-6">No matches for "{query}"</p>}
           {groups.map(g => (

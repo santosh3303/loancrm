@@ -6,7 +6,7 @@ import { SkeletonCard, SkeletonList } from '../components/Skeleton';
 import { periodRange, PERIOD_GROUPS } from '../utils/periods';
 import { getEnabledStats, getEnabledFilters } from './DashboardCustomize';
 import TaskActionSheet from '../components/TaskActionSheet';
-import { taglineFor, sortByGroup, barColorFor, statusOf } from '../utils/taskDisplay';
+import { taglineFor, sortByGroup, barColorFor, priorityBadgeFor, statusOf } from '../utils/taskDisplay';
 
 const ALL_STAT_DEFS = {
   openLeads: { lbl: 'LEADS', dest: () => '/master-database?tab=leads' },
@@ -129,14 +129,19 @@ export default function Dashboard() {
       <div className="card p-1.5">
         {visibleTasks.length === 0 && <p className="text-center text-gray-300 text-sm py-4">Nothing here — you're caught up.</p>}
         {visibleTasks.slice(0, 4).map(t => {
-          const status = statusOf(t, today);
+          const badge = priorityBadgeFor(t);
           return (
-            <div key={t.id} onClick={(e) => { setAnchorRect(e.currentTarget.getBoundingClientRect()); setActiveTask(t); }} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors cursor-pointer">
+            <div key={t.id} onClick={(e) => { setAnchorRect(e.currentTarget.getBoundingClientRect()); setActiveTask(t); }} className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl active:bg-navy-50 transition-colors cursor-pointer">
               <div className="w-[3px] self-stretch rounded-sm" style={{ background: barColorFor(t, today) }} />
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-semibold text-navy-900">{t.notes || 'Follow up'}</div>
                 <div className="text-[11px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>
               </div>
+              {badge && (
+                <span className="shrink-0 text-[8.5px] font-bold text-white px-1.5 py-0.5 rounded-md whitespace-nowrap" style={{ background: badge.color }}>
+                  {badge.label}
+                </span>
+              )}
             </div>
           );
         })}

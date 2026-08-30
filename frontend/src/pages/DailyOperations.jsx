@@ -5,7 +5,7 @@ import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { getEnabledFilters } from './DashboardCustomize';
 import TaskActionSheet from '../components/TaskActionSheet';
-import { statusOf, taglineFor, sortByGroup, barColorFor } from '../utils/taskDisplay';
+import { statusOf, taglineFor, sortByGroup, barColorFor, priorityBadgeFor } from '../utils/taskDisplay';
 
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All' },
@@ -13,6 +13,12 @@ const STATUS_OPTIONS = [
   { key: 'today', label: 'Today' },
   { key: 'upcoming', label: 'Upcoming' },
   { key: 'done', label: 'Done' },
+];
+const TAG_OPTIONS = [
+  { key: 'all', label: 'All' },
+  { key: 'Urgent', label: 'Urgent' },
+  { key: 'Important', label: 'Important' },
+  { key: 'Top Priority', label: 'Top Priority' },
 ];
 const TYPE_FILTERS = [
   { key: 'all', label: 'All' },
@@ -26,6 +32,8 @@ export default function DailyOperations() {
   const [files, setFiles] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [statusOpen, setStatusOpen] = useState(false);
+  const [tagFilter, setTagFilter] = useState('all');
+  const [tagOpen, setTagOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [showNewTask, setShowNewTask] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
@@ -33,6 +41,7 @@ export default function DailyOperations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const statusRef = useRef();
+  const tagRef = useRef();
 
   const openTaskMenu = (e, t) => {
     setAnchorRect(e.currentTarget.getBoundingClientRect());
@@ -56,7 +65,10 @@ export default function DailyOperations() {
     if (searchParams.get('new') === 'task') { setShowNewTask(true); searchParams.delete('new'); setSearchParams(searchParams, { replace: true }); }
   }, [searchParams]);
   useEffect(() => {
-    const onDocClick = (e) => { if (statusRef.current && !statusRef.current.contains(e.target)) setStatusOpen(false); };
+    const onDocClick = (e) => {
+      if (statusRef.current && !statusRef.current.contains(e.target)) setStatusOpen(false);
+      if (tagRef.current && !tagRef.current.contains(e.target)) setTagOpen(false);
+    };
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
@@ -82,6 +94,7 @@ export default function DailyOperations() {
   else if (statusFilter === 'today') visible = pending.filter(t => t.due_date === today);
   else if (statusFilter === 'upcoming') visible = pending.filter(t => t.due_date > today);
   else if (statusFilter === 'done') visible = tasks.filter(t => t.status === 'Done');
+  if (tagFilter !== 'all') visible = visible.filter(t => t.priority_tag === tagFilter);
   if (typeFilter !== 'all') visible = visible.filter(t => t.method === typeFilter);
 
   // Always grouped Overdue -> Today -> Upcoming -> Rest -> Done, regardless
@@ -93,21 +106,40 @@ export default function DailyOperations() {
 
   return (
     <div className="p-4 pb-6 animate-fade-in">
-      <div className="flex justify-between items-center mb-3.5 relative" ref={statusRef}>
+      <div className="flex justify-between items-center mb-3.5 gap-2">
         <h1 className="font-display text-xl font-bold text-navy-900">Daily Operations</h1>
-        <button onClick={() => setStatusOpen(o => !o)} className="h-[38px] box-border flex items-center gap-1 bg-navy-50 rounded-xl px-3.5 text-[12.5px] font-bold text-navy-700">
-          {STATUS_OPTIONS.find(s => s.key === statusFilter).label} <ChevronDown size={12} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {statusOpen && (
-          <div className="absolute right-0 top-[44px] w-[150px] bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in">
-            {STATUS_OPTIONS.map(s => (
-              <div key={s.key} onClick={() => { setStatusFilter(s.key); setStatusOpen(false); }}
-                className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer flex justify-between ${statusFilter === s.key ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
-                {s.label} {s.key !== 'all' && <span className="text-gray-400 font-normal">· {statusCounts[s.key]}</span>}
+        <div className="flex gap-2 shrink-0">
+          <div className="relative" ref={tagRef}>
+            <button onClick={() => setTagOpen(o => !o)} className="box-border flex items-center gap-1 bg-navy-50 rounded-xl px-3 text-[12.5px] font-bold text-navy-700" style={{ height: 38 }}>
+              {TAG_OPTIONS.find(s => s.key === tagFilter).label} <ChevronDown size={12} className={`transition-transform ${tagOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {tagOpen && (
+              <div className="absolute bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in" style={{ right: 0, top: 44, width: 150 }}>
+                {TAG_OPTIONS.map(s => (
+                  <div key={s.key} onClick={() => { setTagFilter(s.key); setTagOpen(false); }}
+                    className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer ${tagFilter === s.key ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
+                    {s.label}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
+          <div className="relative" ref={statusRef}>
+            <button onClick={() => setStatusOpen(o => !o)} className="box-border flex items-center gap-1 bg-navy-50 rounded-xl px-3 text-[12.5px] font-bold text-navy-700" style={{ height: 38 }}>
+              {STATUS_OPTIONS.find(s => s.key === statusFilter).label} <ChevronDown size={12} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {statusOpen && (
+              <div className="absolute bg-white rounded-2xl shadow-card border border-gray-100 p-2 z-40 animate-fade-in" style={{ right: 0, top: 44, width: 150 }}>
+                {STATUS_OPTIONS.map(s => (
+                  <div key={s.key} onClick={() => { setStatusFilter(s.key); setStatusOpen(false); }}
+                    className={`px-2.5 py-2 rounded-lg text-[12px] font-bold cursor-pointer flex justify-between ${statusFilter === s.key ? 'bg-amber-50 text-amber-700' : 'text-navy-700 active:bg-navy-50'}`}>
+                    {s.label} {s.key !== 'all' && <span className="text-gray-400 font-normal">· {statusCounts[s.key]}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4">
@@ -122,19 +154,24 @@ export default function DailyOperations() {
       <div className="card p-0.5">
         {visible.length === 0 && <p className="text-center text-gray-300 text-sm py-10">Nothing here — you're all caught up.</p>}
         {visible.map(t => {
-          const status = statusOf(t, today);
           const done = t.status === 'Done';
+          const badge = priorityBadgeFor(t);
           return (
-            <div key={t.id} onClick={(e) => openTaskMenu(e, t)} className="flex items-center gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer active:bg-navy-50 transition-colors">
+            <div key={t.id} onClick={(e) => openTaskMenu(e, t)} className="flex items-start gap-2.5 px-2.5 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer active:bg-navy-50 transition-colors">
               <div className="w-1 self-stretch rounded-sm shrink-0" style={{ background: barColorFor(t, today), minHeight: '32px' }} />
               <button onClick={(e) => { e.stopPropagation(); toggleDone(t); }}
-                className={`w-5 h-5 rounded-full border-2 shrink-0 active:scale-90 transition-transform flex items-center justify-center ${done ? 'bg-amber-500 border-amber-500' : 'border-navy-100'}`}>
+                className={`w-5 h-5 rounded-full border-2 shrink-0 active:scale-90 transition-transform flex items-center justify-center mt-0.5 ${done ? 'bg-amber-500 border-amber-500' : 'border-navy-100'}`}>
                 {done && <Check size={12} className="text-white" strokeWidth={3} />}
               </button>
               <div className="flex-1 min-w-0">
                 <div className={`text-[13.5px] font-medium ${done ? 'text-gray-400 line-through' : 'text-navy-900'}`}>{t.notes || 'Follow up'}</div>
                 <div className="text-[11.5px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>
               </div>
+              {badge && (
+                <span className="shrink-0 text-[8.5px] font-bold text-white px-1.5 py-0.5 rounded-md whitespace-nowrap mt-0.5" style={{ background: badge.color }}>
+                  {badge.label}
+                </span>
+              )}
             </div>
           );
         })}
@@ -230,7 +267,7 @@ function NewTaskModal({ onClose, onSaved }) {
           <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="input" />
         </div>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 mb-1">Priority Tag (optional — for future use, doesn't affect color/grouping yet)</label>
+          <label className="block text-xs text-gray-500 mb-1">Priority Tag (optional)</label>
           <select value={form.priority_tag} onChange={e => setForm(f => ({ ...f, priority_tag: e.target.value }))} className="input">
             <option value="">None</option>
             <option value="Urgent">Urgent</option>

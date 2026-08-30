@@ -3,8 +3,10 @@
 
 export const GROUP_ORDER = ['overdue', 'today', 'upcoming', 'rest', 'done'];
 export const BAR_COLOR = { overdue: '#e0503f', today: '#9aa5b1', upcoming: 'transparent', rest: 'transparent', done: 'transparent' };
-const STATUS_WORD = { overdue: 'Overdue', today: 'Today', upcoming: 'Upcoming', rest: '', done: 'Done' };
 const IMPORTANT_COLOR = '#d19a1a';
+const URGENT_COLOR = '#8b1e1e';
+const TOP_PRIORITY_COLOR = '#ea7317';
+export const PRIORITY_BADGE_COLOR = { Urgent: URGENT_COLOR, Important: IMPORTANT_COLOR, 'Top Priority': TOP_PRIORITY_COLOR };
 
 export function statusOf(t, today) {
   if (t.status === 'Done') return 'done';
@@ -14,24 +16,37 @@ export function statusOf(t, today) {
   return 'rest';
 }
 
-// "Important" is a manual flag, independent of the time-based grouping —
-// it overrides the bar color (but not the sort group) wherever it's set.
+// Left-edge color strip: reflects ONLY the automatic date-based status
+// (Overdue/Today/Upcoming/Rest/Done). This is deliberately independent of
+// any manually-set priority tag — the two are shown as two distinct visual
+// elements (see priorityBadgeFor below) rather than one overriding the other.
 export function barColorFor(t, today) {
-  if (t.priority_tag === 'Important') return IMPORTANT_COLOR;
   return BAR_COLOR[statusOf(t, today)];
 }
 
-// "{Name}. {Party type}. {Method}. {Status}. Due {date}" — for tasks with no
+// Small top-right label for a manually-set priority tag (Urgent/Important/
+// Top Priority). Returns null when no tag is set, so callers can skip
+// rendering the badge entirely. Distinct from barColorFor on purpose — the
+// two indicators must never share the same visual (e.g. both as a colored
+// strip), so they read as clearly separate signals.
+export function priorityBadgeFor(t) {
+  if (!t.priority_tag) return null;
+  const color = PRIORITY_BADGE_COLOR[t.priority_tag];
+  if (!color) return null;
+  return { label: t.priority_tag, color };
+}
+
+// "{Name}. {Party type}. {Method}. {relative due date}" — for tasks with no
 // linked lead (e.g. Backend/internal tasks), the name segment is skipped.
 // The due-date segment uses relative day-phrasing on cards (per product
 // decision) — exact dates only appear in the Modify form's date field.
+// Priority tags are NOT included here — they render as their own badge
+// (see priorityBadgeFor), not as extra tagline text.
 export function taglineFor(t, name) {
   const today = new Date().toISOString().slice(0, 10);
-  const status = STATUS_WORD[statusOf(t, today)];
   const parts = [];
   if (name) parts.push(name);
   parts.push(t.party_type, t.method);
-  if (status) parts.push(status);
   parts.push(relativeDueDate(t.due_date, today));
   return parts.join('. ');
 }
