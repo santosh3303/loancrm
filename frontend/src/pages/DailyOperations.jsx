@@ -168,7 +168,7 @@ export default function DailyOperations() {
                 <div className="text-[11.5px] text-gray-400 mt-0.5">{taglineFor(t, nameFor(t))}</div>
               </div>
               {badge && (
-                <span className="shrink-0 text-[8.5px] font-bold text-white px-1.5 py-0.5 rounded-md whitespace-nowrap mt-0.5" style={{ background: badge.color }}>
+                <span className="shrink-0 text-[10px] font-bold whitespace-nowrap mt-0.5" style={{ color: badge.color }}>
                   {badge.label}
                 </span>
               )}

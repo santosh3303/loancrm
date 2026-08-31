@@ -22,31 +22,18 @@ Every time you want to use the app afterward, you repeat: start backend,
 then start frontend, then open the browser link. Two terminal windows stay
 open in the background while you work.
 
-## What's included in this pilot
+## Deploying (GitHub + Render + Turso)
 
-- Dashboard — pipeline counts, today's follow-ups, open queries
-- Leads — entry form with live duplicate/match detection, list view
-- Loan Files — full stage tracker (sales-side → bank-side, pivoting at File
-  Login), applicants (Main/Co-Applicant/Guarantor) with document tiers,
-  auto-generated Required Docs List (WhatsApp-shareable), Banker Discussion
-  Summary (with rule-based flags), Follow-ups, Queries, Communication Log,
-  Commission tracking
-- Contacts — Connectors (with performance/conversion stats) and Bankers
-- Reports — filter loan files by category/stage/source/bank/date, export to CSV
-- One-click WhatsApp and Call buttons throughout
-
-## What's NOT built yet (next phases, once you've tried this)
-
-- Deployment to a hosted service (Render) — this pilot is local-only for now,
-  as planned
-- Fully drag-and-drop customizable dashboard — current one is fixed-layout
-- PDF export for reports (CSV export is included)
-- Editing document checklist rules from within the app itself (currently a
-  starter "Generic" rule set is seeded in the database — bank-specific
-  rules can be added, just not yet through a screen in the app)
+1. On GitHub, delete the current `backend` and `frontend` folders in your repo.
+2. Drag-and-drop the `backend` and `frontend` folders from this zip back in,
+   using GitHub's web upload interface (no command line needed).
+3. Render auto-redeploys both services a few moments after the push.
+4. The free-tier backend service sleeps after ~15 minutes idle; the first
+   request after that takes 30–60 seconds to wake up — this is expected.
 
 ## Your data
 
-Everything you enter lives in `backend/loan_crm.db`. To back it up, just copy
-that one file somewhere safe (e.g., a dated copy in a backup folder) — no
-technical steps needed.
+Everything you enter lives in Turso (production) or `backend/local.db`
+(local testing only). To back up production data, use the Reporting page's
+CSV export for Loan Files — note this does not cover Leads, Contacts,
+Queries, or Communication Log data (no full-database export exists yet).

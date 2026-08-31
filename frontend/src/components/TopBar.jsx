@@ -66,11 +66,17 @@ export default function TopBar() {
   // above (rootRef.current.contains(e.target)) already treats clicks inside
   // the scope dropdown as "inside" the search UI — selecting a scope option
   // does not close the search banner.
+  //
+  // FIX: the title row must stay visible at all times, even while search is
+  // open. It previously collapsed to opacity-0/h-0 when `open`, which is
+  // what caused the search banner to visually overlay/replace the header
+  // instead of appearing as an additional row below it (the Ditto mockup
+  // never hid this row — the search UI always expands underneath it).
   return (
     <div ref={rootRef} className="relative shrink-0 z-30 bg-white border-b border-navy-900/5 px-4 py-3.5">
-      <div className={`flex justify-between items-center transition-opacity ${open ? 'opacity-0 h-0 pointer-events-none' : ''}`}>
+      <div className="flex justify-between items-center">
         <span onClick={() => navigate('/')} className="font-display font-bold text-[16px] text-navy-900 cursor-pointer active:opacity-60">My CRM</span>
-        <button onClick={toggle} className="w-[34px] h-[34px] rounded-[10px] bg-navy-900/5 flex items-center justify-center text-navy-500 active:scale-90 transition-transform">
+        <button onClick={toggle} className="w-[34px] h-[34px] rounded-[10px] bg-navy-900/5 flex items-center justify-center text-navy-500 active:scale-90 transition-transform shrink-0">
           <Search size={16} strokeWidth={2.3} />
         </button>
       </div>
