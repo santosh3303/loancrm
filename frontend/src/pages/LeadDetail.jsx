@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
+import RupeeInput from '../components/RupeeInput';
 import Breadcrumb from '../components/Breadcrumb';
 import { useToast } from '../components/Toast';
 import { formatDateDisplay } from '../utils/taskDisplay';
+import { parseRupeeValue } from '../utils/currency';
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -27,9 +29,9 @@ export default function LeadDetail() {
       qualification_status: lead.qualification_status, priority: lead.priority,
       cibil_score: lead.cibil_score ? Number(lead.cibil_score) : null,
       profile_type: lead.profile_type, profile_detail: lead.profile_detail,
-      monthly_income: lead.monthly_income ? Number(lead.monthly_income) : null,
+      monthly_income: parseRupeeValue(lead.monthly_income),
       loan_category: lead.loan_category, loan_subcategory: lead.loan_subcategory,
-      loan_amount: lead.loan_amount ? Number(lead.loan_amount) : null,
+      loan_amount: parseRupeeValue(lead.loan_amount),
       additional_info: lead.additional_info, location: lead.location
     });
     toast('Lead details saved.', 'success');
@@ -63,7 +65,7 @@ export default function LeadDetail() {
             <input type="number" value={lead.cibil_score || ''} onChange={e => update('cibil_score', e.target.value)} className="input" />
           </Field>
           <Field label="Monthly Income">
-            <input type="number" value={lead.monthly_income || ''} onChange={e => update('monthly_income', e.target.value)} className="input" />
+            <RupeeInput value={lead.monthly_income} onChange={v => update('monthly_income', v)} />
           </Field>
           <Field label="Profile Type">
             <select value={lead.profile_type || ''} onChange={e => update('profile_type', e.target.value)} className="input">
@@ -90,7 +92,7 @@ export default function LeadDetail() {
             <input value={lead.loan_subcategory || ''} onChange={e => update('loan_subcategory', e.target.value)} className="input" />
           </Field>
           <Field label="Loan Amount">
-            <input type="number" value={lead.loan_amount || ''} onChange={e => update('loan_amount', e.target.value)} className="input" />
+            <RupeeInput value={lead.loan_amount} onChange={v => update('loan_amount', v)} />
           </Field>
         </div>
       </div>

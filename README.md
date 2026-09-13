@@ -3,7 +3,7 @@
 This is a working local pilot of the CRM we designed together. It has two parts
 that both need to run at the same time:
 
-- **backend** — stores your data (a single file called `loan_crm.db`, created
+- **backend** — stores your data (a single file called `local.db`, created
   automatically the first time you start it — this file IS your entire database,
   back it up by simply copying it).
 - **frontend** — the actual app you click around in, in your browser.
@@ -21,6 +21,25 @@ don't have it — the "LTS" version).
 Every time you want to use the app afterward, you repeat: start backend,
 then start frontend, then open the browser link. Two terminal windows stay
 open in the background while you work.
+
+## What changed in this update
+
+- New Contact form now has a Type dropdown (Lead / Connector / Banker) and its
+  Name field autosuggests across all saved Leads, Connectors, and Bankers together.
+- New Lead form was rebuilt: Name autosuggests against existing Leads (with the
+  existing Mobile duplicate-check kept), a new Loan Category → Property Usage →
+  Sub-type set of dependent dropdowns (only for Home Loan / Mortgage Loan), a
+  ₹-formatted Amount field, and one dynamic field that relabels itself and
+  changes behavior based on Source (Campaign Name for FB Ads, Reference Name for
+  Referral, Source Details for Direct).
+- ₹ prefix + Indian comma-grouped formatting (e.g. ₹ 15,00,000) now applies to
+  every editable amount field in the app: New Lead's Amount, New Loan File's
+  Amount, Lead Detail's Monthly Income and Loan Amount, and Loan File Detail's
+  Commission Expected Amount.
+- Clicking outside any open form or overlay panel now closes it, app-wide —
+  previously this only worked for the header's Search panel.
+- New database column: `contacts.property_usage` (Residential / Commercial),
+  added automatically on next server start — no manual database work needed.
 
 ## Deploying (GitHub + Render + Turso)
 

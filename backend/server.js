@@ -34,6 +34,17 @@ app.get('/api/contacts', async (req, res) => {
   res.json(rows);
 });
 
+// Distinct previously-used campaign names, for the New Lead form's FB Ads autosuggest.
+// Must stay ABOVE '/api/contacts/:id' below — Express matches routes in registration
+// order, and "campaign-names" would otherwise be swallowed as an :id value.
+app.get('/api/contacts/campaign-names', async (req, res) => {
+  const rows = await db.all(`
+    SELECT DISTINCT campaign_name FROM contacts
+    WHERE campaign_name IS NOT NULL AND campaign_name != '' ORDER BY campaign_name
+  `);
+  res.json(rows.map(r => r.campaign_name));
+});
+
 app.get('/api/contacts/:id', async (req, res) => {
   const row = await db.get(`SELECT * FROM contacts WHERE id = ?`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -45,14 +56,14 @@ app.post('/api/contacts', async (req, res) => {
   const info = await db.run(`
     INSERT INTO contacts (role, name, mobile, location, lead_date, qualification_status, priority,
       source, campaign_name, referred_by_contact_id, cibil_score, profile_type, profile_detail,
-      monthly_income, loan_category, loan_subcategory, loan_amount, additional_info)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      monthly_income, loan_category, loan_subcategory, loan_amount, property_usage, additional_info)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `, [
     c.role, c.name, c.mobile || null, c.location || null, c.lead_date || null,
     c.qualification_status || null, c.priority || null, c.source || null, c.campaign_name || null,
     c.referred_by_contact_id || null, c.cibil_score || null, c.profile_type || null,
     c.profile_detail || null, c.monthly_income || null, c.loan_category || null,
-    c.loan_subcategory || null, c.loan_amount || null, c.additional_info || null
+    c.loan_subcategory || null, c.loan_amount || null, c.property_usage || null, c.additional_info || null
   ]);
   const newContact = await db.get(`SELECT * FROM contacts WHERE id = ?`, [info.lastInsertRowid]);
 
@@ -75,12 +86,12 @@ app.put('/api/contacts/:id', async (req, res) => {
     UPDATE contacts SET role=?, name=?, mobile=?, location=?, lead_date=?,
       qualification_status=?, priority=?, source=?, campaign_name=?,
       referred_by_contact_id=?, cibil_score=?, profile_type=?, profile_detail=?,
-      monthly_income=?, loan_category=?, loan_subcategory=?, loan_amount=?, additional_info=?
+      monthly_income=?, loan_category=?, loan_subcategory=?, loan_amount=?, property_usage=?, additional_info=?
     WHERE id=?
   `, [c.role, c.name, c.mobile, c.location, c.lead_date, c.qualification_status, c.priority,
       c.source, c.campaign_name, c.referred_by_contact_id, c.cibil_score, c.profile_type,
       c.profile_detail, c.monthly_income, c.loan_category, c.loan_subcategory, c.loan_amount,
-      c.additional_info, c.id]);
+      c.property_usage, c.additional_info, c.id]);
   for (const k of Object.keys(req.body)) await auditLog('contacts', c.id, k, existing[k], req.body[k]);
   res.json(await db.get(`SELECT * FROM contacts WHERE id = ?`, [req.params.id]));
 });

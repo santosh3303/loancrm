@@ -17,6 +17,7 @@ export const api = {
   createContact: (data) => req('POST', '/contacts', data),
   updateContact: (id, data) => req('PUT', `/contacts/${id}`, data),
   getConnectorPerformance: (id) => req('GET', `/contacts/${id}/performance`),
+  getCampaignNames: () => req('GET', '/contacts/campaign-names'),
 
   getLoanFiles: () => req('GET', '/loan-files'),
   getLoanFile: (id) => req('GET', `/loan-files/${id}`),

@@ -3,9 +3,11 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
 import StageTracker, { STAGES } from '../components/StageTracker';
+import RupeeInput from '../components/RupeeInput';
 import Breadcrumb from '../components/Breadcrumb';
 import { useToast } from '../components/Toast';
 import { formatDateDisplay } from '../utils/taskDisplay';
+import { parseRupeeValue } from '../utils/currency';
 
 export default function LoanFileDetail() {
   const { id } = useParams();
@@ -136,11 +138,11 @@ function ShareButtons({ mobile, text }) {
 function CommissionEditor({ file, onSave }) {
   const [expected, setExpected] = useState(file.commission_expected || '');
   const [status, setStatus] = useState(file.commission_status || 'Pending');
-  const save = async () => { await api.updateLoanFile(file.id, { commission_expected: Number(expected) || null, commission_status: status }); onSave(); };
+  const save = async () => { await api.updateLoanFile(file.id, { commission_expected: parseRupeeValue(expected), commission_status: status }); onSave(); };
   return (
     <div className="flex gap-3 items-end text-sm">
       <div><label className="block text-xs text-gray-500">Expected Amount</label>
-        <input type="number" value={expected} onChange={e => setExpected(e.target.value)} className="input" /></div>
+        <RupeeInput value={expected} onChange={setExpected} /></div>
       <div><label className="block text-xs text-gray-500">Status</label>
         <select value={status} onChange={e => setStatus(e.target.value)} className="input">
           {['Pending', 'Partially Received', 'Received'].map(s => <option key={s}>{s}</option>)}

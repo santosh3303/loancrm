@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
+import RupeeInput from '../components/RupeeInput';
 import { useToast } from '../components/Toast';
 
 const AVATAR_COLORS = ['#1c3252', '#e8896f', '#8fae8b', '#e0a13a', '#2f4d75'];
@@ -71,78 +72,161 @@ function LeadsPanel() {
 }
 
 const emptyLeadForm = {
-  lead_date: new Date().toISOString().slice(0, 10), name: '', mobile: '', location: '',
-  loan_category: 'Home Loan', loan_subcategory: 'Fresh', loan_amount: '',
-  source: 'FB Ads', campaign_name: '', referred_by_name: '', referred_by_mobile: '', referred_by_contact_id: null,
-  priority: 'Medium', qualification_status: 'Valid', additional_info: ''
+  name: '', mobile: '', location: '',
+  loan_category: 'Home Loan', property_usage: 'Residential', loan_subcategory: 'Fresh',
+  loan_amount: '',
+  source: 'FB Ads',
+  campaign_name: '',                                   // used when source = FB Ads
+  referred_by_name: '', referred_by_mobile: '', referred_by_contact_id: null, // used when source = Referral
+  additional_info: '',                                  // used when source = Direct ("Source Details")
 };
 
 function NewLeadModal({ onClose, onSaved }) {
   const [form, setForm] = useState(emptyLeadForm);
   const [nameMatches, setNameMatches] = useState([]);
-  const [refMatches, setRefMatches] = useState([]);
+  const [dynamicMatches, setDynamicMatches] = useState([]);
+  const [campaignNames, setCampaignNames] = useState([]);
   const [dupWarning, setDupWarning] = useState(null);
   const debounceRef = useRef();
+  const dynDebounceRef = useRef();
 
-  const searchDebounced = (value, setResults, role) => {
+  const isHomeOrMortgage = form.loan_category === 'Home Loan' || form.loan_category === 'Mortgage Loan';
+
+  useEffect(() => {
+    if (form.source === 'FB Ads') api.getCampaignNames().then(setCampaignNames);
+  }, [form.source]);
+  useEffect(() => { setDynamicMatches([]); }, [form.source]);
+
+  // Name field autosuggests against Leads only (per decision — Connectors/Bankers are
+  // a separate, later concern for this specific field).
+  const handleNameChange = (v) => {
+    setForm(f => ({ ...f, name: v }));
     clearTimeout(debounceRef.current);
-    if (value.length < 2) { setResults([]); return; }
-    debounceRef.current = setTimeout(async () => setResults(await api.searchContacts(value, role)), 300);
+    if (v.length < 2) { setNameMatches([]); return; }
+    debounceRef.current = setTimeout(async () => setNameMatches(await api.searchContacts(v, 'lead')), 300);
   };
-  const handleNameChange = (v) => { setForm(f => ({ ...f, name: v })); searchDebounced(v, setNameMatches, 'lead'); };
+  const useNameMatch = (m) => {
+    setForm(f => ({ ...f, name: m.name, mobile: m.mobile || f.mobile }));
+    setNameMatches([]);
+  };
+  // Kept from the previous version of this form: a separate check on the Mobile
+  // field itself, since two different-looking names can still share one number.
   const handleMobileBlur = async () => {
-    if (!form.mobile) return;
+    if (!form.mobile) { setDupWarning(null); return; }
     const matches = await api.searchContacts(form.mobile, 'lead');
     setDupWarning(matches.length ? matches[0] : null);
   };
-  const handleRefChange = (v) => { setForm(f => ({ ...f, referred_by_name: v, referred_by_contact_id: null })); searchDebounced(v, setRefMatches, 'connector'); };
+
+  // One field, three meanings depending on Source — label, underlying save target,
+  // and autosuggest pool all switch together.
+  const dynamicLabel = form.source === 'FB Ads' ? 'Campaign Name' : form.source === 'Referral' ? 'Reference Name' : 'Source Details';
+  const dynamicValue = form.source === 'FB Ads' ? form.campaign_name : form.source === 'Referral' ? form.referred_by_name : form.additional_info;
+  const dynamicPlaceholder = form.source === 'FB Ads' ? 'e.g. Home Loan August' : form.source === 'Referral' ? 'Search connectors' : 'Optional notes';
+
+  const handleDynamicChange = (v) => {
+    if (form.source === 'FB Ads') {
+      setForm(f => ({ ...f, campaign_name: v }));
+      setDynamicMatches(v.length < 1 ? campaignNames : campaignNames.filter(n => n.toLowerCase().includes(v.toLowerCase())));
+    } else if (form.source === 'Referral') {
+      setForm(f => ({ ...f, referred_by_name: v, referred_by_contact_id: null }));
+      clearTimeout(dynDebounceRef.current);
+      if (v.length < 2) { setDynamicMatches([]); return; }
+      dynDebounceRef.current = setTimeout(async () => setDynamicMatches(await api.searchContacts(v, 'connector')), 300);
+    } else {
+      setForm(f => ({ ...f, additional_info: v }));
+    }
+  };
+  const useConnectorMatch = (m) => {
+    setForm(f => ({ ...f, referred_by_name: m.name, referred_by_mobile: m.mobile || '', referred_by_contact_id: m.id }));
+    setDynamicMatches([]);
+  };
+  const useCampaignMatch = (name) => {
+    setForm(f => ({ ...f, campaign_name: name }));
+    setDynamicMatches([]);
+  };
 
   const submit = async () => {
     let referredById = form.referred_by_contact_id;
-    if (!referredById && form.referred_by_name) {
+    if (form.source === 'Referral' && !referredById && form.referred_by_name) {
       const nc = await api.createContact({ role: 'connector', name: form.referred_by_name, mobile: form.referred_by_mobile });
       referredById = nc.id;
     }
     await api.createContact({
       role: 'lead', name: form.name, mobile: form.mobile, location: form.location,
-      lead_date: form.lead_date, qualification_status: form.qualification_status, priority: form.priority,
-      source: form.source, campaign_name: form.source === 'FB Ads' ? form.campaign_name : null,
-      referred_by_contact_id: referredById, additional_info: form.additional_info,
-      loan_category: form.loan_category, loan_subcategory: form.loan_subcategory, loan_amount: Number(form.loan_amount) || null
+      lead_date: new Date().toISOString().slice(0, 10), qualification_status: 'Valid', priority: 'Medium',
+      source: form.source,
+      campaign_name: form.source === 'FB Ads' ? form.campaign_name : null,
+      referred_by_contact_id: form.source === 'Referral' ? referredById : null,
+      additional_info: form.source === 'Direct' ? form.additional_info : null,
+      loan_category: form.loan_category,
+      loan_subcategory: isHomeOrMortgage ? form.loan_subcategory : null,
+      property_usage: isHomeOrMortgage ? form.property_usage : null,
+      loan_amount: Number(form.loan_amount) || null
     });
     onSaved();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]">
-      <div className="bg-white rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto mx-4 shadow-card animate-fade-in">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto mx-4 shadow-card animate-fade-in">
         <h3 className="font-display font-semibold text-navy-900 mb-4">New Lead</h3>
         <Field label="Name *">
-          <input value={form.name} onChange={e => handleNameChange(e.target.value)} className="input" />
-          {nameMatches.length > 0 && <MatchBox matches={nameMatches} onUse={(m) => { setForm(f => ({ ...f, name: m.name, mobile: m.mobile || f.mobile })); setNameMatches([]); }} onDismiss={() => setNameMatches([])} />}
+          <input value={form.name} onChange={e => handleNameChange(e.target.value)} className="input" placeholder="Search existing leads or type new" />
+          {nameMatches.length > 0 && <MatchBox matches={nameMatches} onUse={useNameMatch} onDismiss={() => setNameMatches([])} />}
         </Field>
         <Field label="Mobile *">
           <input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} onBlur={handleMobileBlur} className="input" />
           {dupWarning && <div className="text-xs bg-amber-50 border border-amber-200 rounded p-2 mt-1">⚠ Possible duplicate: {dupWarning.name} ({dupWarning.mobile})</div>}
         </Field>
         <Field label="Location"><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="input" /></Field>
-        <div className="grid grid-cols-2 gap-3">
+
+        <div className={isHomeOrMortgage ? 'grid grid-cols-2 gap-3' : ''}>
           <Field label="Loan Category">
             <select value={form.loan_category} onChange={e => setForm(f => ({ ...f, loan_category: e.target.value }))} className="input">
               {['Home Loan', 'Mortgage Loan', 'Personal Loan', 'Business Loan', 'Others'].map(c => <option key={c}>{c}</option>)}
             </select>
           </Field>
-          <Field label="Amount"><input type="number" value={form.loan_amount} onChange={e => setForm(f => ({ ...f, loan_amount: e.target.value }))} className="input" /></Field>
+          {isHomeOrMortgage && (
+            <Field label="Property Usage">
+              <select value={form.property_usage} onChange={e => setForm(f => ({ ...f, property_usage: e.target.value }))} className="input">
+                <option>Residential</option><option>Commercial</option>
+              </select>
+            </Field>
+          )}
         </div>
+        {isHomeOrMortgage && (
+          <Field label="Sub-type">
+            <select value={form.loan_subcategory} onChange={e => setForm(f => ({ ...f, loan_subcategory: e.target.value }))} className="input">
+              <option>Fresh</option><option>Resell</option><option>BT Topup</option>
+            </select>
+          </Field>
+        )}
+
+        <Field label="Amount"><RupeeInput value={form.loan_amount} onChange={v => setForm(f => ({ ...f, loan_amount: v }))} /></Field>
+
         <Field label="Source">
           <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="input">
             {['FB Ads', 'Referral', 'Direct'].map(s => <option key={s}>{s}</option>)}
           </select>
         </Field>
-        <Field label="Reference Name">
-          <input value={form.referred_by_name} onChange={e => handleRefChange(e.target.value)} className="input" />
-          {refMatches.length > 0 && <MatchBox matches={refMatches} onUse={(m) => { setForm(f => ({ ...f, referred_by_name: m.name, referred_by_mobile: m.mobile || '', referred_by_contact_id: m.id })); setRefMatches([]); }} onDismiss={() => setRefMatches([])} />}
+
+        <Field label={dynamicLabel}>
+          <input value={dynamicValue} onChange={e => handleDynamicChange(e.target.value)} className="input" placeholder={dynamicPlaceholder} />
+          {form.source === 'Referral' && dynamicMatches.length > 0 && (
+            <MatchBox matches={dynamicMatches} onUse={useConnectorMatch} onDismiss={() => setDynamicMatches([])} />
+          )}
+          {form.source === 'FB Ads' && dynamicMatches.length > 0 && (
+            <div className="border border-amber-200 bg-amber-50 rounded-lg p-2 mt-1 text-xs space-y-1">
+              {dynamicMatches.map((name, i) => (
+                <div key={i} className="flex justify-between">
+                  <span>{name}</span>
+                  <button onClick={() => useCampaignMatch(name)} className="text-amber-700 underline">Use</button>
+                </div>
+              ))}
+            </div>
+          )}
         </Field>
+
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={submit} className="btn-primary">Save Lead</button>
@@ -216,8 +300,8 @@ function NewFileModal({ onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]">
-      <div className="bg-white rounded-2xl p-5 w-full max-w-lg mx-4 shadow-card animate-fade-in">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-5 w-full max-w-lg mx-4 shadow-card animate-fade-in">
         <h3 className="font-display font-semibold text-navy-900 mb-4">New Loan File</h3>
         <Field label="Lead *">
           <input value={leadQuery} onChange={e => handleLeadSearch(e.target.value)} className="input" placeholder="Search existing lead" />
@@ -239,7 +323,7 @@ function NewFileModal({ onClose, onSaved }) {
               {['Home Loan', 'Mortgage Loan', 'Personal Loan', 'Business Loan', 'Others'].map(c => <option key={c}>{c}</option>)}
             </select>
           </Field>
-          <Field label="Amount"><input type="number" value={form.loan_amount} onChange={e => setForm(f => ({ ...f, loan_amount: e.target.value }))} className="input" /></Field>
+          <Field label="Amount"><RupeeInput value={form.loan_amount} onChange={v => setForm(f => ({ ...f, loan_amount: v }))} /></Field>
         </div>
         <Field label="Bank Name"><input value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))} className="input" placeholder="Leave blank for Generic" /></Field>
         <Field label="Banker Contact">
@@ -262,7 +346,6 @@ function ContactsPanel() {
   const [role, setRole] = useState('connector');
   const [contacts, setContacts] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', mobile: '' });
   const [perf, setPerf] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
@@ -273,12 +356,6 @@ function ContactsPanel() {
     if (searchParams.get('new') === 'contact') { setShowForm(true); searchParams.delete('new'); setSearchParams(searchParams, { replace: true }); }
   }, [searchParams]);
 
-  const submit = async () => {
-    await api.createContact({ role, ...form });
-    setForm({ name: '', mobile: '' }); setShowForm(false);
-    toast(`${role === 'connector' ? 'Connector' : 'Banker'} added.`, 'success');
-    load();
-  };
   const viewPerf = async (id) => setPerf(await api.getConnectorPerformance(id));
 
   return (
@@ -321,19 +398,85 @@ function ContactsPanel() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-sm mx-4 shadow-card animate-fade-in">
-            <h3 className="font-display font-semibold text-navy-900 mb-4">New {role === 'connector' ? 'Connector' : 'Banker'}</h3>
-            <Field label="Name"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input" /></Field>
-            <Field label="Mobile"><input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} className="input" /></Field>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-              <button onClick={submit} className="btn-primary">Save</button>
-            </div>
-          </div>
-        </div>
+        <NewContactModal
+          onClose={() => setShowForm(false)}
+          onSaved={(savedType) => {
+            setShowForm(false);
+            if (savedType === 'lead') {
+              toast('Lead added. Since this was saved as a Lead, you\'ll find it under the Leads tab, not here in Contacts.', 'success');
+            } else {
+              toast(`${savedType === 'connector' ? 'Connector' : 'Banker'} added.`, 'success');
+              if (savedType === role) load();
+            }
+          }}
+        />
       )}
     </>
+  );
+}
+
+const TYPE_BADGE_STYLE = {
+  lead: 'bg-amber-100 text-amber-700',
+  connector: 'bg-green-100 text-green-700',
+  banker: 'bg-blue-100 text-blue-700',
+};
+
+function NewContactModal({ onClose, onSaved }) {
+  const [form, setForm] = useState({ name: '', mobile: '', type: 'lead' });
+  const [matches, setMatches] = useState([]);
+  const debounceRef = useRef();
+
+  // Deliberately the one field in the app that searches Leads + Connectors + Bankers
+  // together — New Lead's own Name field stays Leads-only (a separate, earlier decision).
+  const handleNameChange = (v) => {
+    setForm(f => ({ ...f, name: v }));
+    clearTimeout(debounceRef.current);
+    if (v.length < 2) { setMatches([]); return; }
+    debounceRef.current = setTimeout(async () => setMatches(await api.searchContacts(v)), 300);
+  };
+  const useMatch = (m) => {
+    setForm(f => ({ ...f, name: m.name, mobile: m.mobile || f.mobile, type: m.role }));
+    setMatches([]);
+  };
+
+  const submit = async () => {
+    if (!form.name.trim()) return;
+    await api.createContact({ role: form.type, name: form.name, mobile: form.mobile || null });
+    onSaved(form.type);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-5 w-full max-w-sm mx-4 shadow-card animate-fade-in">
+        <h3 className="font-display font-semibold text-navy-900 mb-4">New Contact</h3>
+        <Field label="Name">
+          <input value={form.name} onChange={e => handleNameChange(e.target.value)} className="input" placeholder="Search all contacts or type new" />
+          {matches.length > 0 && (
+            <div className="border border-amber-200 bg-amber-50 rounded-lg p-2 mt-1 text-xs space-y-1">
+              {matches.map(m => (
+                <div key={m.id} className="flex justify-between items-center gap-2">
+                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full shrink-0 ${TYPE_BADGE_STYLE[m.role]}`}>{m.role}</span>
+                  <span className="flex-1">{m.name} — {m.mobile || 'no number'}</span>
+                  <button onClick={() => useMatch(m)} className="text-amber-700 underline shrink-0">Use</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Field>
+        <Field label="Mobile"><input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} className="input" /></Field>
+        <Field label="Contact Type">
+          <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className="input">
+            <option value="lead">Lead</option>
+            <option value="connector">Connector</option>
+            <option value="banker">Banker</option>
+          </select>
+        </Field>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={submit} className="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

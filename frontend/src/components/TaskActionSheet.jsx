@@ -89,8 +89,8 @@ function TaskEditForm({ task, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] animate-fade-in">
-      <div className="bg-white rounded-2xl p-5 w-full max-w-sm mx-4 shadow-card">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] animate-fade-in" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-5 w-full max-w-sm mx-4 shadow-card">
         <h3 className="font-display font-semibold text-navy-900 mb-4">Modify Task</h3>
         <div className="mb-3">
           <label className="block text-xs text-gray-500 mb-1">Notes</label>

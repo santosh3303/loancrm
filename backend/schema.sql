@@ -27,6 +27,7 @@ CREATE TABLE contacts (
     loan_category TEXT,          -- captured at first enquiry (before a Loan File exists)
     loan_subcategory TEXT,
     loan_amount REAL,
+    property_usage TEXT,         -- Residential / Commercial; only meaningful for Home Loan & Mortgage Loan categories
     additional_info TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
