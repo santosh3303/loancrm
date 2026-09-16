@@ -90,6 +90,9 @@ async function init() {
   await ensureColumn('doc_checklist_rules', 'property_type', 'TEXT');
   await ensureColumn('doc_checklist_rules', 'profile_type', 'TEXT');
   await ensureColumn('contacts', 'property_usage', 'TEXT');
+  await ensureColumn('contacts', 'mobile_2', 'TEXT');
+  await ensureColumn('contacts', 'email', 'TEXT');
+  await ensureColumn('contacts', 'bank_name', 'TEXT');
 
   const eligTable = await client.execute(
     `SELECT name FROM sqlite_master WHERE type='table' AND name='eligibility_rules'`

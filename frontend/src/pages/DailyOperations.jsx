@@ -36,6 +36,7 @@ export default function DailyOperations() {
   const [tagOpen, setTagOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [showNewTask, setShowNewTask] = useState(false);
+  const [taskPrefill, setTaskPrefill] = useState(null);
   const [activeTask, setActiveTask] = useState(null);
   const [anchorRect, setAnchorRect] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -62,7 +63,14 @@ export default function DailyOperations() {
   };
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    if (searchParams.get('new') === 'task') { setShowNewTask(true); searchParams.delete('new'); setSearchParams(searchParams, { replace: true }); }
+    if (searchParams.get('new') === 'task') {
+      const notes = searchParams.get('prefillNotes');
+      const party = searchParams.get('prefillParty');
+      setTaskPrefill((notes || party) ? { notes: notes || '', party_type: party || 'Lead' } : null);
+      setShowNewTask(true);
+      ['new', 'prefillNotes', 'prefillParty'].forEach(k => searchParams.delete(k));
+      setSearchParams(searchParams, { replace: true });
+    }
   }, [searchParams]);
   useEffect(() => {
     const onDocClick = (e) => {
@@ -193,7 +201,7 @@ export default function DailyOperations() {
         ))}
       </div>
 
-      {showNewTask && <NewTaskModal onClose={() => setShowNewTask(false)} onSaved={() => { setShowNewTask(false); toast('Task added.', 'success'); load(); }} />}
+      {showNewTask && <NewTaskModal initialPrefill={taskPrefill} onClose={() => setShowNewTask(false)} onSaved={() => { setShowNewTask(false); toast('Task added.', 'success'); load(); }} />}
       {activeTask && (
         <TaskActionSheet task={activeTask} displayLine={taglineFor(activeTask, nameFor(activeTask))}
           anchorRect={anchorRect} onClose={closeTaskMenu} onChanged={load} />
@@ -210,8 +218,11 @@ function FilterChip({ active, onClick, children }) {
   );
 }
 
-function NewTaskModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ party_type: 'Lead', method: 'Call', due_date: new Date().toISOString().slice(0, 10), notes: '', priority_tag: '' });
+function NewTaskModal({ onClose, onSaved, initialPrefill }) {
+  const [form, setForm] = useState({
+    party_type: initialPrefill?.party_type || 'Lead', method: 'Call',
+    due_date: new Date().toISOString().slice(0, 10), notes: initialPrefill?.notes || '', priority_tag: '',
+  });
   const [leadQuery, setLeadQuery] = useState('');
   const [leadMatches, setLeadMatches] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);

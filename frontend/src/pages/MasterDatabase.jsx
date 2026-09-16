@@ -1,12 +1,16 @@
 import { useEffect, useState, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import ContactActions from '../components/ContactActions';
 import RupeeInput from '../components/RupeeInput';
+import Accordion from '../components/Accordion';
 import { useToast } from '../components/Toast';
+import { formatDateDisplay } from '../utils/taskDisplay';
 
 const AVATAR_COLORS = ['#1c3252', '#e8896f', '#8fae8b', '#e0a13a', '#2f4d75'];
 const colorFor = (id) => AVATAR_COLORS[id % AVATAR_COLORS.length];
+const LOAN_CATEGORIES = ['Home Loan', 'Mortgage Loan', 'Personal Loan', 'Business Loan', 'Others'];
+const categoryLabel = (c) => (c === 'Others' ? 'Other Loan' : c);
 
 export default function MasterDatabase() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,43 +41,188 @@ export default function MasterDatabase() {
 function LeadsPanel() {
   const [leads, setLeads] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [prefill, setPrefill] = useState(null);
+  const [fileFormLead, setFileFormLead] = useState(null); // set by "Save & Create Loan Files" to chain into NewFileModal
+  const [expandedId, setExpandedId] = useState(null); // only one Lead card open at a time, across the whole list
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
 
   const load = () => api.getContacts('lead').then(setLeads);
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    if (searchParams.get('new') === 'lead') { setShowForm(true); searchParams.delete('new'); setSearchParams(searchParams, { replace: true }); }
+    if (searchParams.get('new') === 'lead') {
+      const pre = {};
+      ['prefillName', 'prefillMobile', 'prefillMobile2', 'prefillEmail', 'prefillLocation'].forEach(k => {
+        if (searchParams.get(k)) pre[k.replace('prefill', '').replace(/^./, c => c.toLowerCase())] = searchParams.get(k);
+      });
+      setPrefill(Object.keys(pre).length ? pre : null);
+      setShowForm(true);
+      ['new', 'prefillName', 'prefillMobile', 'prefillMobile2', 'prefillEmail', 'prefillLocation'].forEach(k => searchParams.delete(k));
+      setSearchParams(searchParams, { replace: true });
+    }
   }, [searchParams]);
 
   return (
     <>
       <div className="flex justify-end mb-3">
-        <button onClick={() => setShowForm(true)} className="btn-primary text-[12.5px]">+ New Lead</button>
+        <button onClick={() => { setPrefill(null); setShowForm(true); }} className="btn-primary text-[12.5px]">+ New Lead</button>
       </div>
       <div className="space-y-2.5">
         {leads.map(l => (
-          <Link key={l.id} to={`/leads/${l.id}`} className="card flex items-center gap-3 p-3.5 active:scale-[0.98] transition-transform">
-            <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: colorFor(l.id) }}>
-              {l.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13.5px] font-bold text-navy-900">{l.name}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{l.mobile} · {l.qualification_status}</div>
-            </div>
-            <span className="text-gray-300 text-lg">›</span>
-          </Link>
+          <LeadCard key={l.id} lead={l} expanded={expandedId === l.id}
+            onToggle={() => setExpandedId(id => id === l.id ? null : l.id)}
+            onChanged={load} />
         ))}
         {leads.length === 0 && <p className="text-center text-gray-300 text-sm py-10">No leads yet</p>}
       </div>
-      {showForm && <NewLeadModal onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); toast('Lead added.', 'success'); load(); }} />}
+      {showForm && (
+        <NewLeadModal
+          initialPrefill={prefill}
+          onClose={() => setShowForm(false)}
+          onSaved={() => { setShowForm(false); toast('Lead added.', 'success'); load(); }}
+          onSavedAndCreateFile={(lead) => { setShowForm(false); toast('Lead added.', 'success'); load(); setFileFormLead(lead); }}
+        />
+      )}
+      {fileFormLead && (
+        <NewFileModal
+          initialLead={fileFormLead}
+          onClose={() => setFileFormLead(null)}
+          onSaved={() => { setFileFormLead(null); toast('Loan file created.', 'success'); }}
+        />
+      )}
     </>
   );
 }
 
+function LeadCard({ lead, expanded, onToggle, onChanged }) {
+  const [tab, setTab] = useState('details');
+  const [form, setForm] = useState(null);
+  const [followUps, setFollowUps] = useState(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    if (expanded && !form) {
+      setForm({
+        name: lead.name, mobile: lead.mobile || '', mobile_2: lead.mobile_2 || '', email: lead.email || '',
+        location: lead.location || '', loan_category: lead.loan_category || 'Home Loan',
+        property_usage: lead.property_usage || 'Residential', loan_amount: lead.loan_amount || '',
+        source: lead.source || 'FB Ads', campaign_name: lead.campaign_name || '', additional_info: lead.additional_info || '',
+      });
+    }
+    if (expanded && tab === 'followups' && followUps === null) {
+      api.getFollowUps().then(all => setFollowUps(all.filter(f => f.lead_contact_id === lead.id)));
+    }
+  }, [expanded, tab]);
+
+  if (!expanded) {
+    return (
+      <div onClick={onToggle} className="card flex items-center gap-3 p-3.5 active:scale-[0.98] transition-transform cursor-pointer">
+        <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: colorFor(lead.id) }}>
+          {lead.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] font-bold text-navy-900">{lead.name}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">{lead.mobile} · {lead.qualification_status}</div>
+        </div>
+        <span className="text-gray-300 text-lg">›</span>
+      </div>
+    );
+  }
+
+  if (!form) return <div className="card p-3.5 text-gray-400 text-sm">Loading...</div>;
+
+  const isHomeOrMortgage = form.loan_category === 'Home Loan' || form.loan_category === 'Mortgage Loan';
+  const dynamicLabel = form.source === 'FB Ads' ? 'Campaign Name' : form.source === 'Referral' ? 'Reference Name' : 'Source Details';
+  const dynamicValue = form.source === 'FB Ads' ? form.campaign_name : form.additional_info;
+
+  const save = async () => {
+    await api.updateContact(lead.id, {
+      name: form.name, mobile: form.mobile, mobile_2: form.mobile_2 || null, email: form.email || null,
+      location: form.location, loan_category: form.loan_category,
+      property_usage: isHomeOrMortgage ? form.property_usage : null, loan_amount: Number(form.loan_amount) || null,
+      source: form.source, campaign_name: form.source === 'FB Ads' ? form.campaign_name : null,
+      additional_info: form.source === 'Direct' ? form.additional_info : null,
+    });
+    toast('Lead details saved.', 'success');
+    onChanged();
+  };
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div onClick={onToggle} className="flex items-center gap-3 p-3.5 cursor-pointer">
+        <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: colorFor(lead.id) }}>
+          {lead.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] font-bold text-navy-900">{lead.name}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">{lead.mobile} · {lead.qualification_status}</div>
+        </div>
+        <span className="text-gray-300 text-lg">⌄</span>
+      </div>
+      <div className="border-t border-gray-100 px-3.5 pb-3.5 pt-2">
+        <div className="flex gap-1 border-b border-gray-100 mb-3 text-xs">
+          <button onClick={() => setTab('details')} className={`px-2.5 py-2 font-semibold ${tab === 'details' ? 'text-navy-700 border-b-2 border-amber-500' : 'text-gray-400'}`}>Details</button>
+          <button onClick={() => setTab('followups')} className={`px-2.5 py-2 font-semibold ${tab === 'followups' ? 'text-navy-700 border-b-2 border-amber-500' : 'text-gray-400'}`}>Follow-ups</button>
+        </div>
+        {tab === 'details' && (
+          <div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Name"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input" /></Field>
+              <Field label="Mobile"><input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} className="input" /></Field>
+              <Field label="Mobile 2"><input value={form.mobile_2} onChange={e => setForm(f => ({ ...f, mobile_2: e.target.value }))} className="input" /></Field>
+              <Field label="Email"><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input" /></Field>
+            </div>
+            <Field label="Location"><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="input" /></Field>
+            <div className={isHomeOrMortgage ? 'grid grid-cols-2 gap-3' : ''}>
+              <Field label="Loan Category">
+                <select value={form.loan_category} onChange={e => setForm(f => ({ ...f, loan_category: e.target.value }))} className="input">
+                  {LOAN_CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+                </select>
+              </Field>
+              {isHomeOrMortgage && (
+                <Field label="Sub-Category">
+                  <select value={form.property_usage} onChange={e => setForm(f => ({ ...f, property_usage: e.target.value }))} className="input">
+                    <option>Residential</option><option>Commercial</option>
+                  </select>
+                </Field>
+              )}
+            </div>
+            <Field label="Amount"><RupeeInput value={form.loan_amount} onChange={v => setForm(f => ({ ...f, loan_amount: v }))} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Source">
+                <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="input">
+                  {['FB Ads', 'Referral', 'Direct'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </Field>
+              {form.source !== 'Referral' && (
+                <Field label={dynamicLabel}>
+                  <input value={dynamicValue} onChange={e => setForm(f => (form.source === 'FB Ads' ? { ...f, campaign_name: e.target.value } : { ...f, additional_info: e.target.value }))} className="input" />
+                </Field>
+              )}
+            </div>
+            <button onClick={save} className="btn-primary w-full mt-1">Save Changes</button>
+          </div>
+        )}
+        {tab === 'followups' && (
+          <div>
+            {followUps === null && <p className="text-gray-400 text-sm">Loading...</p>}
+            {followUps && followUps.length === 0 && <p className="text-gray-400 text-sm">None yet</p>}
+            {followUps && followUps.map(f => (
+              <div key={f.id} className="py-1.5 border-b border-gray-50 last:border-0 flex justify-between text-sm">
+                <span>{f.party_type} — {f.method} — {formatDateDisplay(f.due_date)} — {f.notes}</span>
+                <span className={f.status === 'Pending' ? 'text-orange-600' : 'text-green-600'}>{f.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const emptyLeadForm = {
-  name: '', mobile: '', location: '',
-  loan_category: 'Home Loan', property_usage: 'Residential', loan_subcategory: 'Fresh',
+  name: '', mobile: '', mobile_2: '', email: '', location: '',
+  loan_category: 'Home Loan', property_usage: 'Residential',
   loan_amount: '',
   source: 'FB Ads',
   campaign_name: '',                                   // used when source = FB Ads
@@ -81,8 +230,9 @@ const emptyLeadForm = {
   additional_info: '',                                  // used when source = Direct ("Source Details")
 };
 
-function NewLeadModal({ onClose, onSaved }) {
-  const [form, setForm] = useState(emptyLeadForm);
+function NewLeadModal({ onClose, onSaved, onSavedAndCreateFile, initialPrefill }) {
+  const [form, setForm] = useState(() => ({ ...emptyLeadForm, ...(initialPrefill || {}) }));
+  const [openSection, setOpenSection] = useState('contact');
   const [nameMatches, setNameMatches] = useState([]);
   const [dynamicMatches, setDynamicMatches] = useState([]);
   const [campaignNames, setCampaignNames] = useState([]);
@@ -98,15 +248,19 @@ function NewLeadModal({ onClose, onSaved }) {
   useEffect(() => { setDynamicMatches([]); }, [form.source]);
 
   // Name field autosuggests against Leads only (per decision — Connectors/Bankers are
-  // a separate, later concern for this specific field).
+  // a separate, later concern for this specific field). Selecting a match now
+  // auto-fills every saved field on that Lead, not just Name/Mobile.
   const handleNameChange = (v) => {
     setForm(f => ({ ...f, name: v }));
     clearTimeout(debounceRef.current);
     if (v.length < 2) { setNameMatches([]); return; }
     debounceRef.current = setTimeout(async () => setNameMatches(await api.searchContacts(v, 'lead')), 300);
   };
-  const useNameMatch = (m) => {
-    setForm(f => ({ ...f, name: m.name, mobile: m.mobile || f.mobile }));
+  const applyNameMatch = (m) => {
+    setForm(f => ({
+      ...f, name: m.name, mobile: m.mobile || f.mobile, mobile_2: m.mobile_2 || f.mobile_2,
+      email: m.email || f.email, location: m.location || f.location,
+    }));
     setNameMatches([]);
   };
   // Kept from the previous version of this form: a separate check on the Mobile
@@ -136,101 +290,129 @@ function NewLeadModal({ onClose, onSaved }) {
       setForm(f => ({ ...f, additional_info: v }));
     }
   };
-  const useConnectorMatch = (m) => {
+  const applyConnectorMatch = (m) => {
     setForm(f => ({ ...f, referred_by_name: m.name, referred_by_mobile: m.mobile || '', referred_by_contact_id: m.id }));
     setDynamicMatches([]);
   };
-  const useCampaignMatch = (name) => {
+  const applyCampaignMatch = (name) => {
     setForm(f => ({ ...f, campaign_name: name }));
     setDynamicMatches([]);
   };
 
-  const submit = async () => {
+  const buildPayload = async () => {
     let referredById = form.referred_by_contact_id;
     if (form.source === 'Referral' && !referredById && form.referred_by_name) {
       const nc = await api.createContact({ role: 'connector', name: form.referred_by_name, mobile: form.referred_by_mobile });
       referredById = nc.id;
     }
-    await api.createContact({
-      role: 'lead', name: form.name, mobile: form.mobile, location: form.location,
+    return {
+      role: 'lead', name: form.name, mobile: form.mobile, mobile_2: form.mobile_2 || null,
+      email: form.email || null, location: form.location,
       lead_date: new Date().toISOString().slice(0, 10), qualification_status: 'Valid', priority: 'Medium',
       source: form.source,
       campaign_name: form.source === 'FB Ads' ? form.campaign_name : null,
       referred_by_contact_id: form.source === 'Referral' ? referredById : null,
       additional_info: form.source === 'Direct' ? form.additional_info : null,
       loan_category: form.loan_category,
-      loan_subcategory: isHomeOrMortgage ? form.loan_subcategory : null,
       property_usage: isHomeOrMortgage ? form.property_usage : null,
       loan_amount: Number(form.loan_amount) || null
-    });
+    };
+  };
+
+  const submit = async () => {
+    if (!form.name.trim()) return;
+    await api.createContact(await buildPayload());
     onSaved();
   };
+
+  // "Save & Create Loan Files" — saves the Lead exactly like Save Lead, then hands the
+  // newly-created lead straight to NewFileModal, pre-selected — skipping its search step.
+  const submitAndCreateFile = async () => {
+    if (!form.name.trim()) return;
+    const created = await api.createContact(await buildPayload());
+    onSavedAndCreateFile(created);
+  };
+
+  const sections = [
+    {
+      key: 'contact', title: '1. Name & Contact', content: (
+        <>
+          <Field label="Name *">
+            <input value={form.name} onChange={e => handleNameChange(e.target.value)} className="input" placeholder="Search existing leads or type new" />
+            {nameMatches.length > 0 && <MatchBox matches={nameMatches} onUse={applyNameMatch} onDismiss={() => setNameMatches([])} />}
+          </Field>
+          <Field label="Mobile *">
+            <input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} onBlur={handleMobileBlur} className="input" />
+            {dupWarning && <div className="text-xs bg-amber-50 border border-amber-200 rounded p-2 mt-1">⚠ Possible duplicate: {dupWarning.name} ({dupWarning.mobile})</div>}
+          </Field>
+          <Field label="Mobile 2 (optional)"><input value={form.mobile_2} onChange={e => setForm(f => ({ ...f, mobile_2: e.target.value }))} className="input" /></Field>
+          <Field label="Email (optional)"><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input" /></Field>
+          <Field label="Location"><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="input" /></Field>
+        </>
+      )
+    },
+    {
+      key: 'loan', title: '2. Loan Interest', content: (
+        <>
+          <div className={isHomeOrMortgage ? 'grid grid-cols-2 gap-3' : ''}>
+            <Field label="Loan Category">
+              <select value={form.loan_category} onChange={e => setForm(f => ({ ...f, loan_category: e.target.value }))} className="input">
+                {LOAN_CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+              </select>
+            </Field>
+            {isHomeOrMortgage && (
+              <Field label="Sub-Category">
+                <select value={form.property_usage} onChange={e => setForm(f => ({ ...f, property_usage: e.target.value }))} className="input">
+                  <option>Residential</option><option>Commercial</option>
+                </select>
+              </Field>
+            )}
+          </div>
+          <Field label="Amount"><RupeeInput value={form.loan_amount} onChange={v => setForm(f => ({ ...f, loan_amount: v }))} /></Field>
+        </>
+      )
+    },
+    {
+      key: 'reference', title: '3. Reference', content: (
+        <>
+          <Field label="Source">
+            <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="input">
+              {['FB Ads', 'Referral', 'Direct'].map(s => <option key={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label={dynamicLabel}>
+            <input value={dynamicValue} onChange={e => handleDynamicChange(e.target.value)} className="input" placeholder={dynamicPlaceholder} />
+            {form.source === 'Referral' && dynamicMatches.length > 0 && (
+              <MatchBox matches={dynamicMatches} onUse={applyConnectorMatch} onDismiss={() => setDynamicMatches([])} />
+            )}
+            {form.source === 'FB Ads' && dynamicMatches.length > 0 && (
+              <div className="border border-amber-200 bg-amber-50 rounded-lg p-2 mt-1 text-xs space-y-1">
+                {dynamicMatches.map((name, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span>{name}</span>
+                    <button onClick={() => applyCampaignMatch(name)} className="text-amber-700 underline">Use</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
+        </>
+      )
+    },
+  ];
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]" onClick={onClose}>
       <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto mx-4 shadow-card animate-fade-in">
         <h3 className="font-display font-semibold text-navy-900 mb-4">New Lead</h3>
-        <Field label="Name *">
-          <input value={form.name} onChange={e => handleNameChange(e.target.value)} className="input" placeholder="Search existing leads or type new" />
-          {nameMatches.length > 0 && <MatchBox matches={nameMatches} onUse={useNameMatch} onDismiss={() => setNameMatches([])} />}
-        </Field>
-        <Field label="Mobile *">
-          <input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} onBlur={handleMobileBlur} className="input" />
-          {dupWarning && <div className="text-xs bg-amber-50 border border-amber-200 rounded p-2 mt-1">⚠ Possible duplicate: {dupWarning.name} ({dupWarning.mobile})</div>}
-        </Field>
-        <Field label="Location"><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="input" /></Field>
-
-        <div className={isHomeOrMortgage ? 'grid grid-cols-2 gap-3' : ''}>
-          <Field label="Loan Category">
-            <select value={form.loan_category} onChange={e => setForm(f => ({ ...f, loan_category: e.target.value }))} className="input">
-              {['Home Loan', 'Mortgage Loan', 'Personal Loan', 'Business Loan', 'Others'].map(c => <option key={c}>{c}</option>)}
-            </select>
-          </Field>
-          {isHomeOrMortgage && (
-            <Field label="Property Usage">
-              <select value={form.property_usage} onChange={e => setForm(f => ({ ...f, property_usage: e.target.value }))} className="input">
-                <option>Residential</option><option>Commercial</option>
-              </select>
-            </Field>
-          )}
-        </div>
-        {isHomeOrMortgage && (
-          <Field label="Sub-type">
-            <select value={form.loan_subcategory} onChange={e => setForm(f => ({ ...f, loan_subcategory: e.target.value }))} className="input">
-              <option>Fresh</option><option>Resell</option><option>BT Topup</option>
-            </select>
-          </Field>
-        )}
-
-        <Field label="Amount"><RupeeInput value={form.loan_amount} onChange={v => setForm(f => ({ ...f, loan_amount: v }))} /></Field>
-
-        <Field label="Source">
-          <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="input">
-            {['FB Ads', 'Referral', 'Direct'].map(s => <option key={s}>{s}</option>)}
-          </select>
-        </Field>
-
-        <Field label={dynamicLabel}>
-          <input value={dynamicValue} onChange={e => handleDynamicChange(e.target.value)} className="input" placeholder={dynamicPlaceholder} />
-          {form.source === 'Referral' && dynamicMatches.length > 0 && (
-            <MatchBox matches={dynamicMatches} onUse={useConnectorMatch} onDismiss={() => setDynamicMatches([])} />
-          )}
-          {form.source === 'FB Ads' && dynamicMatches.length > 0 && (
-            <div className="border border-amber-200 bg-amber-50 rounded-lg p-2 mt-1 text-xs space-y-1">
-              {dynamicMatches.map((name, i) => (
-                <div key={i} className="flex justify-between">
-                  <span>{name}</span>
-                  <button onClick={() => useCampaignMatch(name)} className="text-amber-700 underline">Use</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Field>
-
+        <Accordion sections={sections} openSection={openSection} onOpenSection={setOpenSection} />
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={submit} className="btn-primary">Save Lead</button>
         </div>
+        <button onClick={submitAndCreateFile} className="w-full mt-2 bg-navy-700 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-navy-900 active:scale-[0.98] transition-all shadow-soft">
+          Save &amp; Create Loan Files
+        </button>
       </div>
     </div>
   );
@@ -275,10 +457,10 @@ function FilesPanel() {
   );
 }
 
-function NewFileModal({ onClose, onSaved }) {
-  const [leadQuery, setLeadQuery] = useState('');
+function NewFileModal({ onClose, onSaved, initialLead }) {
+  const [leadQuery, setLeadQuery] = useState(initialLead ? initialLead.name : '');
   const [leadMatches, setLeadMatches] = useState([]);
-  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(initialLead || null);
   const [bankers, setBankers] = useState([]);
   const [form, setForm] = useState({ loan_category: 'Home Loan', loan_subcategory: 'Fresh', loan_amount: '', bank_name: '', banker_contact_id: '', property_category: '', property_type: '' });
   const debounceRef = useRef();
@@ -320,7 +502,7 @@ function NewFileModal({ onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-3">
           <Field label="Category">
             <select value={form.loan_category} onChange={e => setForm(f => ({ ...f, loan_category: e.target.value }))} className="input">
-              {['Home Loan', 'Mortgage Loan', 'Personal Loan', 'Business Loan', 'Others'].map(c => <option key={c}>{c}</option>)}
+              {LOAN_CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}
             </select>
           </Field>
           <Field label="Amount"><RupeeInput value={form.loan_amount} onChange={v => setForm(f => ({ ...f, loan_amount: v }))} /></Field>
@@ -346,17 +528,15 @@ function ContactsPanel() {
   const [role, setRole] = useState('connector');
   const [contacts, setContacts] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [perf, setPerf] = useState(null);
+  const [expandedId, setExpandedId] = useState(null); // only one Contact card open at a time
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
 
   const load = () => api.getContacts(role).then(setContacts);
-  useEffect(() => { load(); setPerf(null); }, [role]);
+  useEffect(() => { load(); setExpandedId(null); }, [role]);
   useEffect(() => {
     if (searchParams.get('new') === 'contact') { setShowForm(true); searchParams.delete('new'); setSearchParams(searchParams, { replace: true }); }
   }, [searchParams]);
-
-  const viewPerf = async (id) => setPerf(await api.getConnectorPerformance(id));
 
   return (
     <>
@@ -369,33 +549,12 @@ function ContactsPanel() {
       </div>
       <div className="space-y-2.5">
         {contacts.map(c => (
-          <div key={c.id} className="card flex items-center gap-3 p-3.5">
-            <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: colorFor(c.id + 4) }}>
-              {c.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13.5px] font-bold text-navy-900">{c.name}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">{c.mobile}</div>
-            </div>
-            <ContactActions mobile={c.mobile} />
-            {role === 'connector' && <button onClick={() => viewPerf(c.id)} className="text-[11px] text-amber-600 font-semibold ml-1">Stats</button>}
-          </div>
+          <ContactCard key={c.id} contact={c} expanded={expandedId === c.id}
+            onToggle={() => setExpandedId(id => id === c.id ? null : c.id)}
+            onChanged={load} />
         ))}
         {contacts.length === 0 && <p className="text-center text-gray-300 text-sm py-10">No {role}s yet</p>}
       </div>
-
-      {perf && (
-        <div className="card p-4 mt-4">
-          <h3 className="font-display font-semibold text-navy-900 mb-3">Connector Performance</h3>
-          <div className="grid grid-cols-4 gap-3 mb-3 text-center">
-            <div><div className="text-lg font-bold text-navy-900">{perf.leads_referred}</div><div className="text-[9.5px] text-gray-400">REFERRED</div></div>
-            <div><div className="text-lg font-bold text-navy-900">{perf.converted_to_file}</div><div className="text-[9.5px] text-gray-400">CONVERTED</div></div>
-            <div><div className="text-lg font-bold text-navy-900">{perf.disbursed}</div><div className="text-[9.5px] text-gray-400">DISBURSED</div></div>
-            <div><div className="text-lg font-bold text-navy-900">{perf.conversion_rate}%</div><div className="text-[9.5px] text-gray-400">RATE</div></div>
-          </div>
-          <div className="text-xs text-gray-400">Commission Earned: ₹{Number(perf.total_commission_earned).toLocaleString('en-IN')}</div>
-        </div>
-      )}
 
       {showForm && (
         <NewContactModal
@@ -415,16 +574,121 @@ function ContactsPanel() {
   );
 }
 
-const TYPE_BADGE_STYLE = {
-  lead: 'bg-amber-100 text-amber-700',
-  connector: 'bg-green-100 text-green-700',
-  banker: 'bg-blue-100 text-blue-700',
-};
+function ContactCard({ contact, expanded, onToggle, onChanged }) {
+  const [form, setForm] = useState(null);
+  const [perf, setPerf] = useState(null);
+  const [bankMatches, setBankMatches] = useState([]);
+  const [bankNames, setBankNames] = useState([]);
+  const toast = useToast();
+
+  useEffect(() => {
+    if (expanded && !form) {
+      setForm({
+        name: contact.name, mobile: contact.mobile || '', mobile_2: contact.mobile_2 || '',
+        email: contact.email || '', location: contact.location || '', bank_name: contact.bank_name || '',
+      });
+      if (contact.role === 'connector') api.getConnectorPerformance(contact.id).then(setPerf);
+      if (contact.role === 'banker') api.getBankNames().then(setBankNames);
+    }
+  }, [expanded]);
+
+  if (!expanded) {
+    return (
+      <div onClick={onToggle} className="card flex items-center gap-3 p-3.5 cursor-pointer">
+        <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: colorFor(contact.id + 4) }}>
+          {contact.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] font-bold text-navy-900">{contact.name}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">{contact.mobile}</div>
+        </div>
+        <ContactActions mobile={contact.mobile} />
+        <span className="text-gray-300 text-lg ml-1">›</span>
+      </div>
+    );
+  }
+
+  if (!form) return <div className="card p-3.5 text-gray-400 text-sm">Loading...</div>;
+
+  const handleBankSearch = (v) => {
+    setForm(f => ({ ...f, bank_name: v }));
+    setBankMatches(v.length < 1 ? [] : bankNames.filter(b => b.toLowerCase().includes(v.toLowerCase())));
+  };
+
+  const save = async () => {
+    await api.updateContact(contact.id, {
+      name: form.name, mobile: form.mobile, mobile_2: form.mobile_2 || null,
+      email: form.email || null, location: form.location || null,
+      bank_name: contact.role === 'banker' ? form.bank_name || null : null,
+    });
+    toast('Contact saved.', 'success');
+    onChanged();
+  };
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div onClick={onToggle} className="flex items-center gap-3 p-3.5 cursor-pointer">
+        <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: colorFor(contact.id + 4) }}>
+          {contact.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] font-bold text-navy-900">{contact.name}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">{contact.mobile}</div>
+        </div>
+        <ContactActions mobile={contact.mobile} />
+        <span className="text-gray-300 text-lg ml-1">⌄</span>
+      </div>
+      <div className="border-t border-gray-100 px-3.5 pb-3.5 pt-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Name"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input" /></Field>
+          <Field label="Mobile"><input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} className="input" /></Field>
+          <Field label="Mobile 2"><input value={form.mobile_2} onChange={e => setForm(f => ({ ...f, mobile_2: e.target.value }))} className="input" /></Field>
+          <Field label="Email"><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input" /></Field>
+        </div>
+        <Field label="Location"><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="input" /></Field>
+        {contact.role === 'banker' && (
+          <Field label="Bank / NBFC">
+            <input value={form.bank_name} onChange={e => handleBankSearch(e.target.value)} className="input" />
+            {bankMatches.length > 0 && (
+              <div className="border border-amber-200 bg-amber-50 rounded-lg p-2 mt-1 text-xs space-y-1">
+                {bankMatches.map((b, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span>{b}</span>
+                    <button onClick={() => { setForm(f => ({ ...f, bank_name: b })); setBankMatches([]); }} className="text-amber-700 underline">Use</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
+        )}
+        {contact.role === 'connector' && perf && (
+          <div className="card p-3 my-3">
+            <h4 className="font-display font-semibold text-navy-900 text-xs mb-2.5">Connector Performance</h4>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div><div className="text-sm font-bold text-navy-900">{perf.leads_referred}</div><div className="text-[8.5px] text-gray-400">REFERRED</div></div>
+              <div><div className="text-sm font-bold text-navy-900">{perf.converted_to_file}</div><div className="text-[8.5px] text-gray-400">CONVERTED</div></div>
+              <div><div className="text-sm font-bold text-navy-900">{perf.disbursed}</div><div className="text-[8.5px] text-gray-400">DISBURSED</div></div>
+              <div><div className="text-sm font-bold text-navy-900">{perf.conversion_rate}%</div><div className="text-[8.5px] text-gray-400">RATE</div></div>
+            </div>
+          </div>
+        )}
+        <button onClick={save} className="btn-primary w-full mt-1">Save Changes</button>
+      </div>
+    </div>
+  );
+}
 
 function NewContactModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: '', mobile: '', type: 'lead' });
+  const [form, setForm] = useState({ name: '', mobile: '', mobile_2: '', email: '', location: '', type: 'lead', bank_name: '' });
   const [matches, setMatches] = useState([]);
+  const [bankMatches, setBankMatches] = useState([]);
+  const [bankNames, setBankNames] = useState([]);
   const debounceRef = useRef();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (form.type === 'banker') api.getBankNames().then(setBankNames);
+  }, [form.type]);
 
   // Deliberately the one field in the app that searches Leads + Connectors + Bankers
   // together — New Lead's own Name field stays Leads-only (a separate, earlier decision).
@@ -434,15 +698,52 @@ function NewContactModal({ onClose, onSaved }) {
     if (v.length < 2) { setMatches([]); return; }
     debounceRef.current = setTimeout(async () => setMatches(await api.searchContacts(v)), 300);
   };
-  const useMatch = (m) => {
-    setForm(f => ({ ...f, name: m.name, mobile: m.mobile || f.mobile, type: m.role }));
+  const applyMatch = (m) => {
+    setForm(f => ({
+      ...f, name: m.name, mobile: m.mobile || f.mobile, mobile_2: m.mobile_2 || f.mobile_2,
+      email: m.email || f.email, location: m.location || f.location, type: m.role,
+      bank_name: m.bank_name || f.bank_name,
+    }));
     setMatches([]);
   };
+  const handleBankSearch = (v) => {
+    setForm(f => ({ ...f, bank_name: v }));
+    setBankMatches(v.length < 1 ? [] : bankNames.filter(b => b.toLowerCase().includes(v.toLowerCase())));
+  };
+
+  const buildPayload = () => ({
+    role: form.type, name: form.name, mobile: form.mobile || null, mobile_2: form.mobile_2 || null,
+    email: form.email || null, location: form.location || null,
+    bank_name: form.type === 'banker' ? form.bank_name || null : null,
+  });
 
   const submit = async () => {
     if (!form.name.trim()) return;
-    await api.createContact({ role: form.type, name: form.name, mobile: form.mobile || null });
+    await api.createContact(buildPayload());
     onSaved(form.type);
+  };
+
+  // "Save & Create Lead/Task" — saves the Contact exactly like Save, then continues
+  // straight into the next form in the chain: Lead Entry (pre-filled) for a Lead,
+  // or New Task for a Connector/Banker. Reuses the same `?new=...` query-param
+  // convention the Speed Dial already uses, so the destination panel's existing
+  // "open on arrival" effect picks it up with no new plumbing.
+  const saveAndCreate = async () => {
+    if (!form.name.trim()) return;
+    await api.createContact(buildPayload());
+    if (form.type === 'lead') {
+      const params = new URLSearchParams({
+        tab: 'leads', new: 'lead',
+        prefillName: form.name, prefillMobile: form.mobile || '', prefillMobile2: form.mobile_2 || '',
+        prefillEmail: form.email || '', prefillLocation: form.location || '',
+      });
+      navigate(`/master-database?${params.toString()}`);
+    } else {
+      const params = new URLSearchParams({
+        new: 'task', prefillNotes: `Follow up with ${form.name}`, prefillParty: form.type === 'banker' ? 'Bank' : 'Source',
+      });
+      navigate(`/daily-operations?${params.toString()}`);
+    }
   };
 
   return (
@@ -457,13 +758,16 @@ function NewContactModal({ onClose, onSaved }) {
                 <div key={m.id} className="flex justify-between items-center gap-2">
                   <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full shrink-0 ${TYPE_BADGE_STYLE[m.role]}`}>{m.role}</span>
                   <span className="flex-1">{m.name} — {m.mobile || 'no number'}</span>
-                  <button onClick={() => useMatch(m)} className="text-amber-700 underline shrink-0">Use</button>
+                  <button onClick={() => applyMatch(m)} className="text-amber-700 underline shrink-0">Use</button>
                 </div>
               ))}
             </div>
           )}
         </Field>
         <Field label="Mobile"><input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} className="input" /></Field>
+        <Field label="Mobile 2 (optional)"><input value={form.mobile_2} onChange={e => setForm(f => ({ ...f, mobile_2: e.target.value }))} className="input" /></Field>
+        <Field label="Email (optional)"><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input" /></Field>
+        <Field label="Location"><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="input" /></Field>
         <Field label="Contact Type">
           <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className="input">
             <option value="lead">Lead</option>
@@ -471,14 +775,38 @@ function NewContactModal({ onClose, onSaved }) {
             <option value="banker">Banker</option>
           </select>
         </Field>
+        {form.type === 'banker' && (
+          <Field label="Bank / NBFC">
+            <input value={form.bank_name} onChange={e => handleBankSearch(e.target.value)} className="input" placeholder="e.g. HDFC" />
+            {bankMatches.length > 0 && (
+              <div className="border border-amber-200 bg-amber-50 rounded-lg p-2 mt-1 text-xs space-y-1">
+                {bankMatches.map((b, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span>{b}</span>
+                    <button onClick={() => { setForm(f => ({ ...f, bank_name: b })); setBankMatches([]); }} className="text-amber-700 underline">Use</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
+        )}
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={submit} className="btn-primary">Save</button>
         </div>
+        <button onClick={saveAndCreate} className="w-full mt-2 bg-navy-700 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-navy-900 active:scale-[0.98] transition-all shadow-soft">
+          Save &amp; Create {form.type === 'lead' ? 'Lead' : 'Task'}
+        </button>
       </div>
     </div>
   );
 }
+
+const TYPE_BADGE_STYLE = {
+  lead: 'bg-amber-100 text-amber-700',
+  connector: 'bg-green-100 text-green-700',
+  banker: 'bg-blue-100 text-blue-700',
+};
 
 function Field({ label, children }) {
   return <div className="mb-3"><label className="block text-xs text-gray-500 mb-1">{label}</label>{children}</div>;
