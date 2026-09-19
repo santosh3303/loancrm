@@ -6,7 +6,17 @@ async function req(method, path, body) {
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`API error ${res.status} on ${path}`);
+  if (!res.ok) {
+    // Preserve status + parsed error body (e.g. { error: 'duplicate', message, existing })
+    // so callers can distinguish a 409 duplicate from any other failure and show the
+    // server's actual message, rather than a generic "API error" string.
+    let payload = null;
+    try { payload = await res.json(); } catch { /* non-JSON error body, ignore */ }
+    const err = new Error(payload?.message || `API error ${res.status} on ${path}`);
+    err.status = res.status;
+    err.payload = payload;
+    throw err;
+  }
   return res.json();
 }
 

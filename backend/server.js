@@ -35,8 +35,9 @@ app.get('/api/contacts', async (req, res) => {
 });
 
 // Distinct previously-used campaign names, for the New Lead form's FB Ads autosuggest.
-// Must stay ABOVE '/api/contacts/:id' below — Express matches routes in registration
-// order, and "campaign-names" would otherwise be swallowed as an :id value.
+// Distinct previously-used bank/NBFC names, for the New Contact form's Banker-only
+// autosuggest. Both must stay ABOVE '/api/contacts/:id' below — Express matches
+// routes in registration order, and these would otherwise be swallowed as an :id value.
 app.get('/api/contacts/campaign-names', async (req, res) => {
   const rows = await db.all(`
     SELECT DISTINCT campaign_name FROM contacts
@@ -44,9 +45,6 @@ app.get('/api/contacts/campaign-names', async (req, res) => {
   `);
   res.json(rows.map(r => r.campaign_name));
 });
-
-// Distinct previously-used bank/NBFC names, for the New Contact form's Banker-only
-// autosuggest. Same route-ordering caveat as campaign-names above.
 app.get('/api/contacts/bank-names', async (req, res) => {
   const rows = await db.all(`
     SELECT DISTINCT bank_name FROM contacts
@@ -61,8 +59,36 @@ app.get('/api/contacts/:id', async (req, res) => {
   res.json(row);
 });
 
+// Duplicate = same role, same normalized name (trim + lowercase), AND at least one
+// overlapping mobile number checked across BOTH records' Mobile and Mobile 2.
+// Scoped to the SAME role only — a Lead can share a name+mobile with an existing
+// Banker or Connector without conflict; only two records of the SAME role colliding
+// counts as a real duplicate. excludeId lets an edit skip matching against itself.
+async function findContactDuplicate(role, name, mobile, mobile2, excludeId) {
+  const normalized = (name || '').trim().toLowerCase();
+  const mobiles = [mobile, mobile2].filter(Boolean);
+  if (!normalized || mobiles.length === 0) return null;
+  let sql = `SELECT * FROM contacts WHERE role = ? AND LOWER(TRIM(name)) = ?`;
+  const args = [role, normalized];
+  if (excludeId) { sql += ` AND id != ?`; args.push(excludeId); }
+  const sameName = await db.all(sql, args);
+  for (const row of sameName) {
+    const rowMobiles = [row.mobile, row.mobile_2].filter(Boolean);
+    if (mobiles.some(m => rowMobiles.includes(m))) return row;
+  }
+  return null;
+}
+
 app.post('/api/contacts', async (req, res) => {
   const c = req.body;
+  const dup = await findContactDuplicate(c.role, c.name, c.mobile, c.mobile_2, null);
+  if (dup) {
+    return res.status(409).json({
+      error: 'duplicate',
+      message: `A ${c.role} matching this name and mobile number already exists: ${dup.name} (${dup.mobile}).`,
+      existing: dup
+    });
+  }
   const info = await db.run(`
     INSERT INTO contacts (role, name, mobile, mobile_2, email, location, lead_date, qualification_status, priority,
       source, campaign_name, referred_by_contact_id, cibil_score, profile_type, profile_detail,
@@ -92,6 +118,14 @@ app.put('/api/contacts/:id', async (req, res) => {
   const existing = await db.get(`SELECT * FROM contacts WHERE id = ?`, [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const c = { ...existing, ...req.body };
+  const dup = await findContactDuplicate(c.role, c.name, c.mobile, c.mobile_2, existing.id);
+  if (dup) {
+    return res.status(409).json({
+      error: 'duplicate',
+      message: `A ${c.role} matching this name and mobile number already exists: ${dup.name} (${dup.mobile}).`,
+      existing: dup
+    });
+  }
   await db.run(`
     UPDATE contacts SET role=?, name=?, mobile=?, mobile_2=?, email=?, location=?, lead_date=?,
       qualification_status=?, priority=?, source=?, campaign_name=?,

@@ -87,12 +87,12 @@ async function init() {
   await ensureColumn('contacts', 'loan_category', 'TEXT');
   await ensureColumn('contacts', 'loan_subcategory', 'TEXT');
   await ensureColumn('contacts', 'loan_amount', 'REAL');
-  await ensureColumn('doc_checklist_rules', 'property_type', 'TEXT');
-  await ensureColumn('doc_checklist_rules', 'profile_type', 'TEXT');
   await ensureColumn('contacts', 'property_usage', 'TEXT');
   await ensureColumn('contacts', 'mobile_2', 'TEXT');
   await ensureColumn('contacts', 'email', 'TEXT');
   await ensureColumn('contacts', 'bank_name', 'TEXT');
+  await ensureColumn('doc_checklist_rules', 'property_type', 'TEXT');
+  await ensureColumn('doc_checklist_rules', 'profile_type', 'TEXT');
 
   const eligTable = await client.execute(
     `SELECT name FROM sqlite_master WHERE type='table' AND name='eligibility_rules'`

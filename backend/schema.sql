@@ -11,10 +11,10 @@ CREATE TABLE contacts (
     role TEXT NOT NULL CHECK (role IN ('lead', 'connector', 'banker')),
     name TEXT NOT NULL,
     mobile TEXT,
-    location TEXT,
     mobile_2 TEXT,               -- secondary mobile number, any contact type
     email TEXT,                  -- any contact type
-    bank_name TEXT,              -- only meaningful for role = 'banker' (free-typed, autosuggested from prior entries)
+    location TEXT,
+    bank_name TEXT,               -- only meaningful for role = 'banker' (free-typed, autosuggested from prior entries)
     -- Lead-specific fields (NULL for connector/banker rows)
     lead_date TEXT,
     qualification_status TEXT CHECK (qualification_status IN
