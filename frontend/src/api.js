@@ -65,7 +65,8 @@ export const api = {
   updateEligibilityRule: (id, data) => req('PUT', `/eligibility-rules/${id}`, data),
   deleteEligibilityRule: (id) => req('DELETE', `/eligibility-rules/${id}`),
 
-  seedDemoData: () => req('POST', '/seed-demo-data'),
+  // Wipes all records and loads fresh sample data. The server refuses unless 'RESET' is sent.
+  resetAndSeed: () => req('POST', '/reset-and-seed', { confirm: 'RESET' }),
 
   search: (q, scope) => req('GET', `/search?q=${encodeURIComponent(q)}${scope ? `&scope=${scope}` : ''}`),
 };

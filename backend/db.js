@@ -149,4 +149,9 @@ async function seedEligibilityRules() {
     ['Any', 'max_loan_to_income_ratio', 6, 'Loan amount is high relative to annual income — verify affordability with banker']);
 }
 
-module.exports = { get, all, run, init };
+// Runs several statements as ONE atomic unit (all succeed or none apply).
+async function batch(statements) {
+  return client.batch(statements.map(sql => ({ sql, args: [] })), 'write');
+}
+
+module.exports = { get, all, run, batch, init };
