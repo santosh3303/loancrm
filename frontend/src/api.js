@@ -20,8 +20,35 @@ async function req(method, path, body) {
   return res.json();
 }
 
+async function findOrCreateConnector(name, mobile) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.toLowerCase();
+  const matches = await req('GET', `/contacts/search?q=${encodeURIComponent(trimmed)}&role=connector`);
+  const exact = matches.find(m => (m.name || '').trim().toLowerCase() === normalized);
+  if (exact) return exact;
+  try {
+    return await req('POST', '/contacts', { role: 'connector', name: trimmed, mobile: mobile || null });
+  } catch (err) {
+    if (err.status === 409 && err.payload?.existing) return err.payload.existing;
+    throw err;
+  }
+}
+
 export const api = {
+  findOrCreateConnector,
   searchContacts: (q, role) => req('GET', `/contacts/search?q=${encodeURIComponent(q)}${role ? `&role=${role}` : ''}`),
+
+// Shared helper for the "auto-create a Connector from a typed Referral name" flow
+// (New Lead's Reference field, and the Lead card / Lead Detail equivalents). Looks
+// for an EXACT (trim + lowercase) name match among existing Connectors first, so a
+// second save with the same typed name reuses the same record instead of creating a
+// duplicate — this covers the case the server's own duplicate check can't catch,
+// since this flow never collects a mobile number for a brand-new connector, and the
+// server's duplicate rule requires an overlapping mobile by design (documented
+// behavior, not a bug — two genuinely different people can share a name with no
+// mobile on file). Falls back to the server's real duplicate check on create, in
+// case a mobile happens to be present.
   getContacts: (role) => req('GET', `/contacts${role ? `?role=${role}` : ''}`),
   getContact: (id) => req('GET', `/contacts/${id}`),
   createContact: (data) => req('POST', '/contacts', data),

@@ -22,29 +22,31 @@ Every time you want to use the app afterward, you repeat: start backend,
 then start frontend, then open the browser link. Two terminal windows stay
 open in the background while you work.
 
-## What changed in this update
+## What changed in this update (Pass 0 - duplicate-entry fixes)
 
-- **New: "Reset & Load Sample Data" button** (Settings → Testing Tools, at the
-  bottom). It first shows a confirmation pop-up. If you confirm, it permanently
-  deletes ALL Leads, Contacts (Connectors and Bankers), Loan Files, Applicants,
-  Tasks, Queries, Communication Log and Change History, then loads a fresh set:
-  6 leads, 2 connectors, 2 bankers, 4 loan files, 9 tasks, 3 queries and
-  3 communication logs. **Checklist Rules and Eligibility Rules are kept**
-  (they are settings, not records).
-- Pressing it twice never doubles the data — every press starts from empty.
-- The server refuses the reset unless the app's confirmation is sent, so a
-  stray request can't wipe anything.
-- Sample task and lead dates are now relative to today (e.g. "overdue 4 days"),
-  so the Daily Operations groups always look realistic.
-- **Removed:** the old "seed demo data" server route. It had no "already
-  loaded" check, so running it twice doubled everything. The new reset replaces it.
+Three real duplicate-creating paths were found and fixed, all confirmed with live
+tests against the database (not just read from the code):
 
-**Known, disclosed limits of this update**
-- The sample data still uses today's data structure. It will be updated to the
-  new Loan File structure as each Loan File pass ships.
-- The Testing Tools card is temporary and has no login protection (the app has
-  none). Remove it once testing is finished.
-- Nothing else in the app was changed in this update.
+- **The New Contact -> New Lead chain no longer creates a second record.** Previously,
+  tapping "Save & Create Lead" saved the person once, then opened New Lead pre-filled
+  with the same details - and pressing "Save Lead" there tried to save them a SECOND
+  time. If a mobile number was given, this got blocked outright (a dead end for you).
+  If no mobile was given, it silently created a duplicate. New Lead now recognizes
+  when it was opened this way and updates the same record instead of creating a new one.
+- **Referral auto-created Connectors no longer pile up.** When typing a new person's
+  name into a Lead's Reference field (without picking an existing match), the app
+  creates a Connector behind the scenes. This never collects a mobile number, so the
+  server's own duplicate check (which requires a matching mobile) couldn't catch a
+  second save with the same typed name - every save created a new "Suresh Shah" and
+  so on. This is now checked by exact name match first, so the same typed name always
+  reuses the same Connector.
+- **Old sample-data loader removed** (previous update) - replaced by the guarded
+  Reset & Load Sample Data button, confirmed not to double data on repeat use.
+
+**What was checked and found NOT to be a bug**: the core duplicate rule itself (same
+role + same name + an overlapping mobile) is unchanged - that is still the documented
+design, and two people who genuinely share a name with no mobile on file for either
+are correctly not flagged, by design.
 
 ## Deploying (GitHub + Render + Turso)
 

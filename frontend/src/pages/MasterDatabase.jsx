@@ -69,9 +69,10 @@ function LeadsPanel() {
       ['prefillName', 'prefillMobile', 'prefillMobile2', 'prefillEmail', 'prefillLocation'].forEach(k => {
         if (searchParams.get(k)) pre[k.replace('prefill', '').replace(/^./, c => c.toLowerCase())] = searchParams.get(k);
       });
+      if (searchParams.get('prefillContactId')) pre.contactId = searchParams.get('prefillContactId');
       setPrefill(Object.keys(pre).length ? pre : null);
       setShowForm(true);
-      ['new', 'prefillName', 'prefillMobile', 'prefillMobile2', 'prefillEmail', 'prefillLocation'].forEach(k => searchParams.delete(k));
+      ['new', 'prefillName', 'prefillMobile', 'prefillMobile2', 'prefillEmail', 'prefillLocation', 'prefillContactId'].forEach(k => searchParams.delete(k));
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams]);
@@ -210,7 +211,7 @@ function LeadCard({ lead, expanded, onToggle, onChanged }) {
     let referredById = form.referred_by_contact_id;
     if (form.source === 'Referral' && !referredById && form.referred_by_name) {
       try {
-        const nc = await api.createContact({ role: 'connector', name: form.referred_by_name, mobile: '' });
+        const nc = await api.findOrCreateConnector(form.referred_by_name, '');
         referredById = nc.id;
       } catch (err) {
         if (err.status === 409 && err.payload?.existing) referredById = err.payload.existing.id; // auto-resolve to the existing connector
@@ -359,6 +360,12 @@ const emptyLeadForm = {
 };
 
 function NewLeadModal({ onClose, onSaved, onSavedAndCreateFile, initialPrefill }) {
+  // If this modal was opened by New Contact's "Save & Create Lead" chain, a contact
+  // record already exists (created by New Contact) — this form must UPDATE that same
+  // record rather than POST a second one. Without this, the chain either creates a
+  // silent duplicate (when the contact has no mobile) or gets blocked outright by the
+  // server's own duplicate check (when it does) — both confirmed bugs, fixed here.
+  const existingContactId = initialPrefill?.contactId || null;
   const [form, setForm] = useState(() => ({ ...emptyLeadForm, ...(initialPrefill || {}) }));
   const [openSection, setOpenSection] = useState('contact');
   const [nameMatches, setNameMatches] = useState([]);
@@ -424,13 +431,8 @@ function NewLeadModal({ onClose, onSaved, onSavedAndCreateFile, initialPrefill }
   const buildPayload = async () => {
     let referredById = form.referred_by_contact_id;
     if (form.source === 'Referral' && !referredById && form.referred_by_name) {
-      try {
-        const nc = await api.createContact({ role: 'connector', name: form.referred_by_name, mobile: form.referred_by_mobile });
-        referredById = nc.id;
-      } catch (err) {
-        if (err.status === 409 && err.payload?.existing) referredById = err.payload.existing.id;
-        else throw err;
-      }
+      const nc = await api.findOrCreateConnector(form.referred_by_name, form.referred_by_mobile);
+      referredById = nc.id;
     }
     return {
       role: 'lead', name: form.name, mobile: form.mobile, mobile_2: form.mobile_2 || null,
@@ -446,11 +448,16 @@ function NewLeadModal({ onClose, onSaved, onSavedAndCreateFile, initialPrefill }
     };
   };
 
+  const saveContact = async () => {
+    const payload = await buildPayload();
+    return existingContactId ? api.updateContact(existingContactId, payload) : api.createContact(payload);
+  };
+
   const submit = async () => {
     if (!form.name.trim()) return;
     setDupError(null);
     try {
-      await api.createContact(await buildPayload());
+      await saveContact();
       onSaved();
     } catch (err) {
       if (err.status === 409) setDupError(err.message);
@@ -462,8 +469,8 @@ function NewLeadModal({ onClose, onSaved, onSavedAndCreateFile, initialPrefill }
     if (!form.name.trim()) return;
     setDupError(null);
     try {
-      const created = await api.createContact(await buildPayload());
-      onSavedAndCreateFile(created);
+      const saved = await saveContact();
+      onSavedAndCreateFile(saved);
     } catch (err) {
       if (err.status === 409) setDupError(err.message);
       else throw err;
@@ -899,15 +906,16 @@ function NewContactModal({ onClose, onSaved }) {
   const saveAndCreate = async () => {
     if (!form.name.trim()) return;
     setDupError(null);
+    let created;
     try {
-      await api.createContact(buildPayload());
+      created = await api.createContact(buildPayload());
     } catch (err) {
       if (err.status === 409) { setDupError(err.message); return; }
       throw err;
     }
     if (form.type === 'lead') {
       const params = new URLSearchParams({
-        tab: 'leads', new: 'lead',
+        tab: 'leads', new: 'lead', prefillContactId: created.id,
         prefillName: form.name, prefillMobile: form.mobile || '', prefillMobile2: form.mobile_2 || '',
         prefillEmail: form.email || '', prefillLocation: form.location || '',
       });

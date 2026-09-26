@@ -85,7 +85,7 @@ export default function LeadDetail() {
     let referredById = lead.referred_by_contact_id;
     if (lead.source === 'Referral' && !referredById && referredName) {
       try {
-        const nc = await api.createContact({ role: 'connector', name: referredName, mobile: '' });
+        const nc = await api.findOrCreateConnector(referredName, '');
         referredById = nc.id;
       } catch (err) {
         if (err.status === 409 && err.payload?.existing) referredById = err.payload.existing.id;
